@@ -11,7 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/roshbhatia/go-utils/completion"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"golang.org/x/term"
 
 	"github.com/roshbhatia/ask/internal/config"
@@ -203,8 +205,54 @@ func command(opts *options) *cobra.Command {
 			"30m\ta whole repository",
 		}, cobra.ShellCompDirectiveNoFileComp
 	})
+	cmd.CompletionOptions.DisableDefaultCmd = true
+	cmd.AddCommand(completionCommand(cmd))
 
 	return cmd
+}
+
+func completionCommand(root *cobra.Command) *cobra.Command {
+	return &cobra.Command{
+		Use:       "completion bash|zsh|fish|nu",
+		Short:     "Generate shell completion",
+		Args:      cobra.ExactArgs(1),
+		ValidArgs: []string{"bash", "zsh", "fish", "nu"},
+		RunE: func(_ *cobra.Command, args []string) error {
+			switch args[0] {
+			case "bash":
+				return root.GenBashCompletion(os.Stdout)
+			case "zsh":
+				return root.GenZshCompletion(os.Stdout)
+			case "fish":
+				return root.GenFishCompletion(os.Stdout, true)
+			case "nu":
+				out, err := completion.Generate("nu", completionSpec(root))
+				if err != nil {
+					return err
+				}
+				fmt.Fprintln(os.Stdout, out)
+				return nil
+			default:
+				return fmt.Errorf("completion requires bash, zsh, fish, or nu")
+			}
+		},
+	}
+}
+
+func completionSpec(cmd *cobra.Command) completion.Command {
+	spec := completion.Command{Name: cmd.Name(), Description: cmd.Short}
+	cmd.NonInheritedFlags().VisitAll(func(flag *pflag.Flag) {
+		if flag.Hidden {
+			return
+		}
+		spec.Flags = append(spec.Flags, completion.Flag{
+			Name:        flag.Name,
+			Short:       flag.Shorthand,
+			Description: flag.Usage,
+			Value:       flag.NoOptDefVal == "",
+		})
+	})
+	return spec
 }
 
 // models offers what the agent about to run accepts, read from that CLI's help.

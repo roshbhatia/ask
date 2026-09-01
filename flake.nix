@@ -43,9 +43,19 @@
           pkgs = nixpkgs.legacyPackages.${system};
           ask = pkgs.buildGoModule {
             pname = "ask";
-            version = "0.1.0";
+            version = "0.2.0";
             src = ./.;
-            vendorHash = "sha256-2JZU7jIbgqmUZUOoblhytcqpViQYNoUMKXPM5UawOuw=";
+            vendorHash = "sha256-b//E+FeqYdnE5tfwmkoteshjnHkykU8DPuloc8MlT0M=";
+            nativeBuildInputs = [ pkgs.installShellFiles ];
+            postInstall = ''
+              installShellCompletion \
+                --cmd ask \
+                --bash <("$out/bin/ask" completion bash) \
+                --fish <("$out/bin/ask" completion fish) \
+                --zsh <("$out/bin/ask" completion zsh)
+              mkdir -p "$out/share/nushell/vendor/autoload"
+              "$out/bin/ask" completion nu > "$out/share/nushell/vendor/autoload/ask.nu"
+            '';
             meta = {
               description = "Send typed questions and input to local agent harnesses";
               homepage = "https://github.com/roshbhatia/ask";
@@ -86,6 +96,10 @@
               pkgs.go-tools
               pkgs.goreleaser
               pkgs.ripgrep
+              pkgs.charm-freeze
+              pkgs.fish
+              pkgs.nushell
+              pkgs.shfmt
             ];
             shellHook = ''
               export GOTOOLCHAIN=local
