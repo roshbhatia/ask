@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/roshbhatia/ask/internal/store"
 )
@@ -34,11 +35,18 @@ func read() ([]byte, error) {
 	if err != nil {
 		return nil, errors.New("wezterm is not on PATH")
 	}
-	out, err := exec.Command(binary, weztermArgs()...).Output()
+	command := weztermCommand(binary)
+	out, err := command.Output()
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
+}
+
+func weztermCommand(binary string) *exec.Cmd {
+	command := exec.Command(binary, weztermArgs()...)
+	command.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	return command
 }
 
 func weztermArgs() []string {
