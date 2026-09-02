@@ -21,6 +21,7 @@ import (
 	"github.com/roshbhatia/ask/internal/provider"
 	"github.com/roshbhatia/ask/internal/schema"
 	"github.com/roshbhatia/ask/internal/store"
+	"github.com/roshbhatia/ask/internal/templates"
 	"github.com/roshbhatia/ask/internal/ui"
 )
 
@@ -69,18 +70,28 @@ when nothing is typed, and the list of types after a name and a colon.
 an agent an error you have just read.
 
   cargo build; %[1]s --last why did this fail
-  %[1]s --show-last | head`
+  %[1]s --show-last | head
+
+Prompt templates live in the config directory and use {{variable}} placeholders.
+A prompt template can name its default schema template.
+
+  %[1]s schema save review-result 'summary:string, risks:[]string'
+  %[1]s prompt save review --schema review-result --variable repo --variable focus=correctness
+  %[1]s --template review --var repo=ask`
 
 type options struct {
-	prompt   string
-	json     bool
-	spec     string
-	model    string
-	provider string
-	replay   bool
-	last     bool
-	quiet    bool
-	timeout  time.Duration
+	prompt         string
+	json           bool
+	spec           string
+	model          string
+	provider       string
+	replay         bool
+	last           bool
+	quiet          bool
+	timeout        time.Duration
+	template       string
+	vars           []string
+	schemaTemplate string
 
 	showInput  bool
 	showPrompt bool
@@ -166,6 +177,9 @@ func command(opts *options) *cobra.Command {
 	flags.BoolVarP(&opts.last, "last", "l", false, "send what the previous command printed, instead of stdin")
 	flags.BoolVarP(&opts.quiet, "quiet", "q", false, "no progress output at all")
 	flags.DurationVar(&opts.timeout, "timeout", 10*time.Minute, "give up after this long")
+	flags.StringVarP(&opts.template, "template", "t", "", "use a named prompt template")
+	flags.StringArrayVar(&opts.vars, "var", nil, "set one prompt template variable as NAME=VALUE; repeat as needed")
+	flags.StringVar(&opts.schemaTemplate, "schema-template", "", "use a named schema template")
 	flags.BoolVar(&opts.showInput, "show-input", false, "print the last input and exit")
 	flags.BoolVar(&opts.showPrompt, "show-prompt", false, "print the last prompt and exit")
 	flags.BoolVar(&opts.showOutput, "show-output", false, "print the last answer and exit")
@@ -197,6 +211,12 @@ func command(opts *options) *cobra.Command {
 		}
 		return offer, cobra.ShellCompDirectiveNoSpace | cobra.ShellCompDirectiveNoFileComp
 	})
+	_ = cmd.RegisterFlagCompletionFunc("template", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+		return templateNames("prompt"), cobra.ShellCompDirectiveNoFileComp
+	})
+	_ = cmd.RegisterFlagCompletionFunc("schema-template", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+		return templateNames("schema"), cobra.ShellCompDirectiveNoFileComp
+	})
 	_ = cmd.RegisterFlagCompletionFunc("timeout", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 		return []string{
 			"30s\ta quick question",
@@ -207,8 +227,144 @@ func command(opts *options) *cobra.Command {
 	})
 	cmd.CompletionOptions.DisableDefaultCmd = true
 	cmd.AddCommand(completionCommand(cmd))
+	cmd.AddCommand(promptCommand())
+	cmd.AddCommand(schemaCommand())
 
 	return cmd
+}
+
+func templateNames(kind string) []string {
+	names, _ := templates.List(kind)
+	return names
+}
+
+func promptCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "prompt", Short: "Manage prompt templates"}
+	cmd.AddCommand(&cobra.Command{
+		Use:   "list",
+		Short: "List prompt templates",
+		Args:  cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			for _, name := range templateNames("prompt") {
+				fmt.Println(name)
+			}
+			return nil
+		},
+	})
+	cmd.AddCommand(&cobra.Command{
+		Use:               "show NAME",
+		Short:             "Print a prompt template",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completePromptNames,
+		RunE: func(_ *cobra.Command, args []string) error {
+			prompt, err := templates.LoadPrompt(args[0])
+			if err != nil {
+				return err
+			}
+			return printTemplate(prompt)
+		},
+	})
+
+	var description, schemaName string
+	var variables []string
+	save := &cobra.Command{
+		Use:   "save NAME",
+		Short: "Save the last prompt as a template",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			raw, err := store.Prompt()
+			if err != nil {
+				return fmt.Errorf("no saved prompt: %w", err)
+			}
+			declared, err := templates.ParseVariables(variables)
+			if err != nil {
+				return err
+			}
+			path, err := templates.SavePrompt(templates.Prompt{
+				Name: args[0], Description: description, Prompt: string(raw), Schema: schemaName, Variables: declared,
+			})
+			if err != nil {
+				return err
+			}
+			fmt.Println(path)
+			return nil
+		},
+	}
+	save.Flags().StringVar(&description, "description", "", "describe when to use this prompt")
+	save.Flags().StringVar(&schemaName, "schema", "", "associate a default schema template")
+	save.Flags().StringArrayVar(&variables, "variable", nil, "declare NAME or NAME=DEFAULT; repeat as needed")
+	_ = save.RegisterFlagCompletionFunc("schema", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+		return templateNames("schema"), cobra.ShellCompDirectiveNoFileComp
+	})
+	cmd.AddCommand(save)
+	return cmd
+}
+
+func schemaCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "schema", Short: "Manage schema templates"}
+	cmd.AddCommand(&cobra.Command{
+		Use:   "list",
+		Short: "List schema templates",
+		Args:  cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			for _, name := range templateNames("schema") {
+				fmt.Println(name)
+			}
+			return nil
+		},
+	})
+	cmd.AddCommand(&cobra.Command{
+		Use:               "show NAME",
+		Short:             "Print a schema template",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeSchemaNames,
+		RunE: func(_ *cobra.Command, args []string) error {
+			shape, err := templates.LoadSchema(args[0])
+			if err != nil {
+				return err
+			}
+			return printTemplate(shape)
+		},
+	})
+
+	var description string
+	save := &cobra.Command{
+		Use:   "save NAME SPEC",
+		Short: "Save a field spec or JSON Schema file as a template",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(_ *cobra.Command, args []string) error {
+			shape, err := schema.Resolve(args[1])
+			if err != nil {
+				return err
+			}
+			path, err := templates.SaveSchema(templates.Schema{Name: args[0], Description: description, Schema: shape})
+			if err != nil {
+				return err
+			}
+			fmt.Println(path)
+			return nil
+		},
+	}
+	save.Flags().StringVar(&description, "description", "", "describe the structured result")
+	cmd.AddCommand(save)
+	return cmd
+}
+
+func completePromptNames(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	return templateNames("prompt"), cobra.ShellCompDirectiveNoFileComp
+}
+
+func completeSchemaNames(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	return templateNames("schema"), cobra.ShellCompDirectiveNoFileComp
+}
+
+func printTemplate(value any) error {
+	raw, err := templates.Encode(value)
+	if err != nil {
+		return err
+	}
+	_, err = os.Stdout.Write(raw)
+	return err
 }
 
 func completionCommand(root *cobra.Command) *cobra.Command {
@@ -241,6 +397,12 @@ func completionCommand(root *cobra.Command) *cobra.Command {
 
 func completionSpec(cmd *cobra.Command) completion.Command {
 	spec := completion.Command{Name: cmd.Name(), Description: cmd.Short}
+	addCompletionFlags(&spec, cmd)
+	addCompletionCommands(&spec, "", cmd)
+	return spec
+}
+
+func addCompletionFlags(spec *completion.Command, cmd *cobra.Command) {
 	cmd.NonInheritedFlags().VisitAll(func(flag *pflag.Flag) {
 		if flag.Hidden {
 			return
@@ -252,7 +414,19 @@ func completionSpec(cmd *cobra.Command) completion.Command {
 			Value:       flag.NoOptDefVal == "",
 		})
 	})
-	return spec
+}
+
+func addCompletionCommands(spec *completion.Command, parent string, cmd *cobra.Command) {
+	for _, child := range cmd.Commands() {
+		if child.Name() == "completion" || !child.IsAvailableCommand() {
+			continue
+		}
+		name := strings.TrimSpace(parent + " " + child.Name())
+		subcommand := completion.Command{Name: name, Description: child.Short}
+		addCompletionFlags(&subcommand, child)
+		spec.Subcommands = append(spec.Subcommands, subcommand)
+		addCompletionCommands(spec, name, child)
+	}
 }
 
 // models offers what the agent about to run accepts, read from that CLI's help.
@@ -437,6 +611,54 @@ func answer(result *provider.Result, structured bool) ([]byte, error) {
 	return []byte(text), nil
 }
 
+func promptFromTemplate(opts options) (string, string, error) {
+	if opts.template == "" {
+		if len(opts.vars) > 0 {
+			return "", "", errors.New("--var requires --template")
+		}
+		return opts.prompt, "", nil
+	}
+	if opts.prompt != "" {
+		return "", "", errors.New("use either --template or a prompt, not both")
+	}
+
+	prompt, err := templates.LoadPrompt(opts.template)
+	if err != nil {
+		return "", "", err
+	}
+	values, err := templates.Values(opts.vars)
+	if err != nil {
+		return "", "", err
+	}
+	for {
+		rendered, missing, err := templates.Resolve(prompt, values)
+		if err != nil {
+			return "", "", err
+		}
+		if len(missing) == 0 {
+			return rendered, prompt.Schema, nil
+		}
+		if opts.quiet || !term.IsTerminal(int(os.Stderr.Fd())) {
+			names := make([]string, 0, len(missing))
+			for _, variable := range missing {
+				names = append(names, variable.Name)
+			}
+			return "", "", fmt.Errorf("prompt template %q needs --var for: %s", prompt.Name, strings.Join(names, ", "))
+		}
+		for _, variable := range missing {
+			question := "value for " + variable.Name
+			if variable.Description != "" {
+				question += ": " + variable.Description
+			}
+			value, err := ui.Answer(question)
+			if err != nil {
+				return "", "", err
+			}
+			values[variable.Name] = value
+		}
+	}
+}
+
 // once runs the agent to one result, drawing whichever view the terminal allows.
 func once(req provider.Request, opts options, agent provider.Provider) (*provider.Result, error) {
 	ctx, stop := context.WithTimeout(context.Background(), opts.timeout)
@@ -528,10 +750,26 @@ func run(opts options) error {
 	if _, asJSON, _ := wrapper(called()); asJSON {
 		opts.json = true
 	}
+	if opts.spec != "" && opts.schemaTemplate != "" {
+		return errors.New("use either --schema or --schema-template, not both")
+	}
+
+	prompt, defaultSchema, err := promptFromTemplate(opts)
+	if err != nil {
+		return err
+	}
+	if opts.schemaTemplate == "" && opts.spec == "" {
+		opts.schemaTemplate = defaultSchema
+	}
 
 	var shape map[string]any
-	var err error
 	switch {
+	case opts.schemaTemplate != "":
+		named, loadErr := templates.LoadSchema(opts.schemaTemplate)
+		if loadErr != nil {
+			return loadErr
+		}
+		shape = named.Schema
 	case opts.spec != "":
 		if shape, err = schema.Resolve(opts.spec); err != nil {
 			return err
@@ -561,7 +799,6 @@ func run(opts options) error {
 		}
 	}
 
-	prompt := opts.prompt
 	if prompt == "" && opts.replay {
 		saved, err := store.Prompt()
 		if err != nil {

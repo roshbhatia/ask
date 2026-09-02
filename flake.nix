@@ -43,7 +43,7 @@
           pkgs = nixpkgs.legacyPackages.${system};
           ask = pkgs.buildGoModule {
             pname = "ask";
-            version = "0.2.0";
+            version = "0.3.0";
             src = ./.;
             vendorHash = "sha256-b//E+FeqYdnE5tfwmkoteshjnHkykU8DPuloc8MlT0M=";
             nativeBuildInputs = [ pkgs.installShellFiles ];
