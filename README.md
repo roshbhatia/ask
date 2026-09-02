@@ -1,5 +1,7 @@
 # ask
 
+![Ask command help](docs/ask.png)
+
 `ask` sends a prompt and optional standard input to a local agent harness.
 
 It supports Claude and Codex, typed JSON output, reusable configuration, and
@@ -15,5 +17,3 @@ go test -race ./...
 nix flake check
 ./hack/screenshots.sh
 ```
-
-![Ask command help](docs/ask.png)
