@@ -1,6 +1,6 @@
 # ask
 
-![Ask command help](docs/ask.png)
+![Ask running a focused code review through a local agent](docs/ask.png)
 
 `ask` sends a prompt and optional standard input to a local agent harness.
 
