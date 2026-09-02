@@ -2,6 +2,7 @@
 set -euo pipefail
 
 repo_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$repo_dir"
 mkdir -p "$repo_dir/docs"
 build_dir=$(mktemp -d)
 trap 'rm -rf "$build_dir"' EXIT
@@ -17,3 +18,5 @@ PATH="$build_dir:$PATH" freeze \
   --padding 24 \
   --margin 16 \
   --window
+
+PATH="$build_dir:$PATH" vhs hack/ask.tape --output "$repo_dir/docs/ask.gif"

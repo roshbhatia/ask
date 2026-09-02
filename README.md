@@ -2,6 +2,8 @@
 
 ![Ask running a focused code review through a local agent](docs/ask.png)
 
+![Ask animated code review](docs/ask.gif)
+
 `ask` sends a prompt and optional standard input to a local agent harness.
 
 It supports Claude and Codex, typed JSON output, reusable configuration, and
