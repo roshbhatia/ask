@@ -33,7 +33,7 @@ type File struct {
 type Setting struct {
 	Key    string
 	Help   string
-	Values func() []string
+	Values func() ([]string, error)
 	Clean  func(string) (string, error)
 }
 
@@ -42,9 +42,19 @@ var settings = []Setting{{
 	Help:   "the agent to run when no -p and no ASK_PROVIDER say otherwise",
 	Values: provider.Names,
 	Clean: func(value string) (string, error) {
-		one, ok := provider.Lookup(value)
+		one, ok, err := provider.Lookup(value)
+		if err != nil {
+			return "", err
+		}
 		if !ok {
-			return "", fmt.Errorf("unknown provider %q, known: %s", value, strings.Join(provider.Names(), ", "))
+			known, err := provider.Names()
+			if err != nil {
+				return "", err
+			}
+			if len(known) == 0 {
+				return "", fmt.Errorf("provider %q is not installed", value)
+			}
+			return "", fmt.Errorf("unknown provider %q, known: %s", value, strings.Join(known, ", "))
 		}
 		return one.Name, nil
 	},

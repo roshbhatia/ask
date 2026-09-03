@@ -7,14 +7,14 @@
 `ask` sends a prompt and optional standard input to any local agent harness that
 implements its provider protocol.
 
-The Nix package includes Claude Code and Codex providers. Ask also supports typed
-JSON output, reusable prompt and schema templates, and interactive provider
-selection. `wrappers.txt` defines its short command names.
+The default Nix package contains no providers. Ask also supports typed JSON
+output, reusable prompt and schema templates, and interactive provider
+selection. `wrappers.txt` defines its provider-neutral short command names.
 
 Pipe data when the question needs context:
 
 ```bash
-git diff --staged | ask -p codex \
+git diff --staged | ask -p local-model \
   --schema 'summary:string, risks:[]string, safe_to_merge:bool' \
   'Review this patch for correctness and migration risk.'
 ```
@@ -28,7 +28,7 @@ variables you want to expose and save that last prompt:
 ask schema save review-result \
   'summary:string, risks:[]string, tests:[]string, verdict:pass|revise'
 
-ask -p codex 'Review {{repo}} with emphasis on {{focus}}.'
+ask -p local-model 'Review {{repo}} with emphasis on {{focus}}.'
 ask prompt save code-review \
   --schema review-result \
   --variable repo \
@@ -39,7 +39,7 @@ Run the template with only the required value. `focus` uses its saved default.
 The associated `review-result` schema is applied automatically:
 
 ```bash
-git diff --staged | ask -p codex \
+git diff --staged | ask -p local-model \
   --template code-review \
   --var repo=payments-service
 ```
@@ -74,18 +74,25 @@ Generate shell completions with `ask completion bash`, `zsh`, `fish`, or `nu`.
 ## Providers
 
 Ask discovers integrations from `~/.config/ask/providers/<name>/provider.yaml`,
-then each provider root in `ASK_PROVIDER_PATH`. Flat manifest files also work
-for compatibility. The first manifest with a given name wins. The Nix
-package adds its packaged providers to that path, so a user manifest can replace
-one without changing Ask. A release archive also discovers its adjacent
-`providers` directory after extraction.
+then each provider root in `ASK_PROVIDER_PATH`, `XDG_DATA_HOME`, and
+`XDG_DATA_DIRS`. Flat manifest files also work for compatibility. The first
+manifest with a given name wins. A release archive also discovers an adjacent
+`providers` directory when one is present.
 
-Each integration owns one directory and one `provider.yaml` file:
+Each integration owns one directory. The manifest maps commands. The Nix file
+packages its adapter and runtime dependencies:
 
 ```text
 extras/
-├── claude/provider.yaml
-└── codex/provider.yaml
+├── antigravity/{default.nix,provider.yaml}
+├── claude/{default.nix,main.go,provider.yaml}
+├── codex/{default.nix,main.go,provider.yaml}
+├── copilot/{default.nix,provider.yaml}
+├── crush/{default.nix,provider.yaml}
+├── cursor/{default.nix,provider.yaml}
+├── fx/{default.nix,runtime.nix,provider.yaml}
+├── goose/{default.nix,provider.yaml}
+└── hermes/{flake.nix,main.go,provider.yaml}
 ```
 
 A provider manifest declares a command and the actions it supports. Each
@@ -97,21 +104,66 @@ rendered argument vector directly. It never inserts a shell.
 version: provider/v1
 name: local-model
 description: A local one-shot model
-command: [ask-provider-text]
+command: [ask-provider-local-model]
 actions:
   inference.generate:
     description: Generate an answer
-    argv: [model-cli, --model, "{{.Model}}", --prompt, "{{.Prompt}}"]
+    argv:
+      - --model-flag=--model
+      - --prompt-flag=--prompt
+      - --
+      - model-cli
+  provider.validate:
+    description: Validate this adapter without model work
+    argv:
+      - --validate
+      - --model-flag=--model
+      - --prompt-flag=--prompt
+      - --
+      - model-cli
 requires:
   commands: [model-cli]
 defaults:
   timeout: 2m
 ```
 
-The generic `ask-provider-text` adapter covers one-shot text commands. A
-structured adapter can instead read one JSON request from standard input and
-write newline-delimited `provider/v1` events to standard output. This keeps
-harness-specific arguments and output parsing outside Ask's core.
+The optional `ask-provider-text` adapter covers one-shot text commands. A
+provider package can wrap it under its own command name, or supply a structured
+adapter. Each adapter reads one JSON request from standard input and writes
+newline-delimited `provider/v1` events to standard output. Harness-specific
+arguments and output parsing stay outside Ask's core.
+
+The generated wire schemas document each message:
+
+```text
+schema/protocol.request.schema.json
+schema/protocol.event.schema.json
+schema/protocol.models.schema.json
+schema/protocol.validation.schema.json
+```
+
+`input` is plain JSON text. `inference.generate` streams events and ends with
+one `result`. `inference.models` returns one models document.
+`provider.validate` performs a deterministic local adapter probe and returns
+`{"version":"provider/v1","status":"ok"}` without model work.
+
+The flake publishes one package per built-in extra:
+
+```bash
+nix profile install github:roshbhatia/ask#ask github:roshbhatia/ask#provider-cursor
+nix profile install github:roshbhatia/ask#full    # Ask plus root-flake providers
+nix profile install github:roshbhatia/ask#extras  # Root-flake providers only
+```
+
+Hermes owns its larger runtime flake and remains separate from Ask core:
+
+```bash
+nix profile install 'github:roshbhatia/ask?dir=extras/hermes'
+```
+
+Each provider package includes its manifest, adapter, and CLI runtime. The
+default `ask` package does not set `ASK_PROVIDER_PATH` and discovers nothing on
+a clean XDG environment.
 
 Inspect and validate the active integrations before a scripted run:
 
@@ -128,7 +180,7 @@ still works when the YAML file does not exist.
 # yaml-language-server: $schema=https://raw.githubusercontent.com/roshbhatia/ask/main/schema/config.schema.json
 version: ask.config/v1
 provider:
-  default: codex
+  default: local-model
 ```
 
 `ASK_CONFIG` selects another file. `ASK_PROVIDER_DEFAULT` overrides the YAML

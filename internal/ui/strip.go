@@ -11,7 +11,7 @@ import (
 
 // A spinner says a process is alive. This says the agent is writing, which is
 // the thing worth watching, so the cells reroll while a line lands rather than
-// turning at a fixed rate. Crush animates the characters for the same reason.
+// turning at a fixed rate. The glyph animation keeps progress visible.
 const (
 	cells = 10
 	beat  = 90 * time.Millisecond

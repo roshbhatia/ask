@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/roshbhatia/ask/main/schema/provider.schema.json
+version: provider/v1
+name: cursor
+description: Cursor Agent CLI
+command: [ask-provider-cursor]
+actions:
+  inference.generate:
+    description: Generate an answer with Cursor Agent CLI
+    argv:
+      - --model-flag=--model
+      - --
+      - cursor-agent
+      - --print
+      - --output-format
+      - text
+      - --mode
+      - ask
+  inference.models:
+    description: List Cursor Agent CLI models
+    argv: [--models, --, cursor-agent, models]
+  provider.validate:
+    description: Validate the Cursor adapter without model work
+    argv: [--validate, --model-flag=--model, --, cursor-agent]
+requires:
+  commands: [cursor-agent]
+defaults:
+  timeout: 10m

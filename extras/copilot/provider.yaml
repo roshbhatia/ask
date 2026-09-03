@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/roshbhatia/ask/main/schema/provider.schema.json
+version: provider/v1
+name: copilot
+description: GitHub Copilot CLI
+command: [ask-provider-copilot]
+actions:
+  inference.generate:
+    description: Generate an answer with GitHub Copilot CLI
+    argv:
+      - --model-flag=--model
+      - --prompt-flag=--prompt
+      - --
+      - copilot
+      - --silent
+      - --no-color
+      - --no-ask-user
+      - --mode
+      - plan
+  provider.validate:
+    description: Validate the Copilot adapter without model work
+    argv: [--validate, --model-flag=--model, --prompt-flag=--prompt, --, copilot]
+requires:
+  commands: [copilot]
+defaults:
+  timeout: 10m

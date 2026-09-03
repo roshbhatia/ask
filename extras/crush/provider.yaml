@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/roshbhatia/ask/main/schema/provider.schema.json
+version: provider/v1
+name: crush
+description: Crush CLI
+command: [ask-provider-crush]
+actions:
+  inference.generate:
+    description: Generate an answer with Crush
+    argv:
+      - --model-flag=--model
+      - --
+      - crush
+      - run
+      - --quiet
+  provider.validate:
+    description: Validate the Crush adapter without model work
+    argv: [--validate, --model-flag=--model, --, crush]
+requires:
+  commands: [crush]
+defaults:
+  timeout: 10m

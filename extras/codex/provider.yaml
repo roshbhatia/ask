@@ -2,10 +2,12 @@
 version: provider/v1
 name: codex
 description: Codex CLI
-command: [ask-provider, codex]
+command: [ask-provider-codex]
 actions:
   inference.generate:
     description: Generate an answer with Codex
+  provider.validate:
+    description: Validate the Codex adapter without model work
 requires:
   commands: [codex]
 defaults:

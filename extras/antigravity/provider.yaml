@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/roshbhatia/ask/main/schema/provider.schema.json
+version: provider/v1
+name: antigravity
+description: Antigravity CLI
+command: [ask-provider-antigravity]
+actions:
+  inference.generate:
+    description: Generate an answer with Antigravity CLI
+    argv:
+      - --model-flag=--model
+      - --prompt-flag=--print
+      - --schema-flag=--json-schema
+      - --
+      - agy
+      - --mode
+      - plan
+      - --sandbox
+      - --output-format
+      - text
+  inference.models:
+    description: List Antigravity CLI models
+    argv: [--models, --, agy, models]
+  provider.validate:
+    description: Validate the Antigravity adapter without model work
+    argv: [--validate, --model-flag=--model, --prompt-flag=--print, --schema-flag=--json-schema, --, agy]
+requires:
+  commands: [agy]
+defaults:
+  timeout: 10m

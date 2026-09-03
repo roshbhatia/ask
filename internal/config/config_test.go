@@ -14,7 +14,11 @@ func TestLoadYAMLAndEnvironment(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte("version: ask.config/v1\nprovider:\n  default: disk\n"), 0o600); err != nil {
+	config := []byte(`version: ask.config/v1
+provider:
+  default: disk
+`)
+	if err := os.WriteFile(path, config, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("ASK_PROVIDER_DEFAULT", "environment")
@@ -34,14 +38,14 @@ func TestLoadLegacyJSONWhenYAMLIsAbsent(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte(`{"provider.default":"claude"}`), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(`{"provider.default":"sample"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	value, err := Get(ProviderDefault)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if value != "claude" {
+	if value != "sample" {
 		t.Fatalf("got %q", value)
 	}
 }

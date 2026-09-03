@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/roshbhatia/ask/main/schema/provider.schema.json
+version: provider/v1
+name: hermes
+description: Hermes Agent CLI
+command: [ask-provider-hermes]
+actions:
+  inference.generate:
+    description: Generate an answer with Hermes Agent CLI
+  provider.validate:
+    description: Validate the Hermes adapter without model work
+requires:
+  commands: [hermes]
+defaults:
+  timeout: 10m

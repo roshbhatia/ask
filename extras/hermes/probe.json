@@ -1,0 +1,5 @@
+{
+  "version": "provider/v1",
+  "action": "provider.validate",
+  "request": {}
+}

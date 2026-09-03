@@ -11,7 +11,11 @@ package schema
 	name: string & =~"^[a-z][a-z0-9._-]*$"
 	description: string & !=""
 	command: [string & !="", ...string]
-	actions: [=~"^[a-z][a-z0-9._-]*$"]: #Action
+	actions: {
+		"inference.generate": #Action
+		"provider.validate": #Action
+		[=~"^[a-z][a-z0-9._-]*$"]: #Action
+	}
 	requires?: {
 		commands?: [...string & !=""]
 		environment?: [...string & =~"^[A-Za-z_][A-Za-z0-9_]*$"]

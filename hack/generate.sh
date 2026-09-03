@@ -8,6 +8,7 @@ if [[ ${1:-} == "--check" ]]; then
 fi
 
 go run "$root" generate --root "$root" "${check[@]}"
+"$root/hack/audit-provider-neutral.sh"
 for manifest in "$root"/extras/*/provider.yaml; do
   cue vet -c -d '#Provider' "$root/schema/provider.cue" "$manifest"
 done

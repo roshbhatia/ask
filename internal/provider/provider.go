@@ -10,24 +10,26 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
 	shared "github.com/roshbhatia/go-utils/provider"
+
+	"github.com/roshbhatia/ask/internal/process"
 )
 
 const (
 	ActionGenerate = "inference.generate"
 	ActionModels   = "inference.models"
+	ActionValidate = "provider.validate"
 	Protocol       = "provider/v1"
 )
 
 type Request struct {
 	Prompt string         `json:"prompt"`
-	Input  []byte         `json:"input,omitempty"`
+	Input  string         `json:"input,omitempty"`
 	Model  string         `json:"model,omitempty"`
 	Schema map[string]any `json:"schema,omitempty"`
 	Dir    string         `json:"directory"`
@@ -44,8 +46,8 @@ const (
 )
 
 type Event struct {
-	Version string  `json:"version,omitempty"`
-	Kind    Kind    `json:"type"`
+	Version string  `json:"version,omitempty" jsonschema:"enum=provider/v1"`
+	Kind    Kind    `json:"type" jsonschema:"enum=started,enum=text,enum=tool,enum=notice,enum=result"`
 	Text    string  `json:"text,omitempty"`
 	Tool    string  `json:"tool,omitempty"`
 	Result  *Result `json:"result,omitempty"`
@@ -59,13 +61,18 @@ type Result struct {
 }
 
 type Envelope struct {
-	Version string  `json:"version"`
-	Action  string  `json:"action"`
+	Version string  `json:"version" jsonschema:"enum=provider/v1"`
+	Action  string  `json:"action" jsonschema:"enum=inference.generate,enum=inference.models,enum=provider.validate"`
 	Request Request `json:"request"`
 }
 
-type modelResponse struct {
-	Version string   `json:"version"`
+type ValidationResponse struct {
+	Version string `json:"version" jsonschema:"enum=provider/v1"`
+	Status  string `json:"status" jsonschema:"enum=ok"`
+}
+
+type ModelResponse struct {
+	Version string   `json:"version" jsonschema:"enum=provider/v1"`
 	Models  []string `json:"models"`
 }
 
@@ -76,7 +83,6 @@ type Provider interface {
 
 type Info struct {
 	Name   string
-	Short  string
 	Blurb  string
 	Binary string
 
@@ -99,22 +105,11 @@ func (i Info) Models() []string {
 	if err != nil {
 		return nil
 	}
-	value := modelResponse{}
-	if err := runJSON(ctx, plan, Envelope{Version: Protocol, Action: ActionModels}, &value); err != nil || value.Version != Protocol {
+	value := ModelResponse{}
+	if err := runJSON(ctx, plan, Envelope{Version: Protocol, Action: ActionModels}, &value, ""); err != nil || value.Version != Protocol {
 		return nil
 	}
 	return slices.Clone(value.Models)
-}
-
-func compatAlias(name string) string {
-	switch name {
-	case "claude":
-		return "cld"
-	case "codex":
-		return "cdx"
-	default:
-		return name
-	}
 }
 
 func providerDirectory() string {
@@ -135,11 +130,44 @@ func providerRoots() []string {
 			result = append(result, path)
 		}
 	}
-	if executable, err := os.Executable(); err == nil {
-		packaged := filepath.Join(filepath.Dir(executable), "providers")
-		if !slices.Contains(result, packaged) {
-			result = append(result, packaged)
+	dataHome := strings.TrimSpace(os.Getenv("XDG_DATA_HOME"))
+	if dataHome == "" {
+		if home, err := os.UserHomeDir(); err == nil {
+			dataHome = filepath.Join(home, ".local", "share")
 		}
+	}
+	if dataHome != "" {
+		result = append(result, filepath.Join(dataHome, "ask", "providers"))
+	}
+	if executable, err := os.Executable(); err == nil {
+		binaryDirectory := filepath.Dir(executable)
+		result = append(result,
+			filepath.Join(binaryDirectory, "providers"),
+			filepath.Join(binaryDirectory, "..", "share", "ask", "providers"),
+		)
+	}
+	dataDirectories := strings.TrimSpace(os.Getenv("XDG_DATA_DIRS"))
+	if dataDirectories == "" {
+		dataDirectories = "/usr/local/share:/usr/share"
+	}
+	for _, directory := range filepath.SplitList(dataDirectories) {
+		if directory != "" {
+			result = append(result, filepath.Join(directory, "ask", "providers"))
+		}
+	}
+	return uniquePaths(result)
+}
+
+func uniquePaths(paths []string) []string {
+	seen := map[string]bool{}
+	result := make([]string, 0, len(paths))
+	for _, path := range paths {
+		path = filepath.Clean(path)
+		if path == "." || seen[path] {
+			continue
+		}
+		seen[path] = true
+		result = append(result, path)
 	}
 	return result
 }
@@ -166,7 +194,6 @@ func directories() ([]string, error) {
 
 func Discover() ([]Info, error) {
 	seen := map[string]bool{}
-	aliases := map[string]string{}
 	var result []Info
 	directories, err := directories()
 	if err != nil {
@@ -185,46 +212,41 @@ func Discover() ([]Info, error) {
 			if seen[manifest.Name] {
 				continue
 			}
-			alias := compatAlias(manifest.Name)
-			if owner, exists := aliases[alias]; exists && owner != manifest.Name {
-				return nil, fmt.Errorf("provider alias %q is shared by %q and %q", alias, owner, manifest.Name)
-			}
-			seen[manifest.Name], aliases[alias] = true, manifest.Name
-			result = append(result, Info{Name: manifest.Name, Short: alias, Blurb: manifest.Description, Binary: manifest.Command[0], manifest: manifest})
+			seen[manifest.Name] = true
+			result = append(result, Info{Name: manifest.Name, Blurb: manifest.Description, Binary: manifest.Command[0], manifest: manifest})
 		}
 	}
 	slices.SortFunc(result, func(a, b Info) int { return strings.Compare(a.Name, b.Name) })
 	return result, nil
 }
 
-func Known() []Info {
-	providers, _ := Discover()
-	return providers
+func Known() ([]Info, error) {
+	return Discover()
 }
 
-func Lookup(name string) (Info, bool) {
+func Lookup(name string) (Info, bool, error) {
 	providers, err := Discover()
 	if err != nil {
-		return Info{}, false
+		return Info{}, false, err
 	}
 	for _, one := range providers {
-		if name == one.Name || name == one.Short {
-			return one, true
+		if name == one.Name {
+			return one, true, nil
 		}
 	}
-	return Info{}, false
+	return Info{}, false, nil
 }
 
-func Names() []string {
-	providers, _ := Discover()
-	names := make([]string, 0, len(providers)*2)
+func Names() ([]string, error) {
+	providers, err := Discover()
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(providers))
 	for _, one := range providers {
 		names = append(names, one.Name)
-		if one.Short != one.Name {
-			names = append(names, one.Short)
-		}
 	}
-	return names
+	return names, nil
 }
 
 func Find(name string) (Provider, error) {
@@ -236,11 +258,18 @@ func Find(name string) (Provider, error) {
 		return nil, err
 	}
 	for _, one := range providers {
-		if name == one.Name || name == one.Short {
+		if name == one.Name {
 			return one.New(), nil
 		}
 	}
-	return nil, fmt.Errorf("unknown provider %q, known: %s", name, strings.Join(Names(), ", "))
+	known := make([]string, 0, len(providers))
+	for _, one := range providers {
+		known = append(known, one.Name)
+	}
+	if len(known) == 0 {
+		return nil, fmt.Errorf("provider %q is not installed", name)
+	}
+	return nil, fmt.Errorf("unknown provider %q, known: %s", name, strings.Join(known, ", "))
 }
 
 type commandProvider struct{ manifest shared.Manifest }
@@ -258,9 +287,10 @@ func (p commandProvider) Run(ctx context.Context, request Request) (<-chan Event
 	}
 	payload, err := json.Marshal(Envelope{Version: Protocol, Action: ActionGenerate, Request: request})
 	if err != nil {
+		cancel()
 		return nil, err
 	}
-	command := exec.CommandContext(ctx, plan.Argv[0], plan.Argv[1:]...)
+	command := process.CommandContext(ctx, plan.Argv[0], plan.Argv[1:]...)
 	command.Dir = request.Dir
 	command.Env = append(os.Environ(), environment(plan.Env)...)
 	command.Stdin = bytes.NewReader(payload)
@@ -281,7 +311,7 @@ func (p commandProvider) Run(ctx context.Context, request Request) (<-chan Event
 		defer cancel()
 		scanner := bufio.NewScanner(stdout)
 		scanner.Buffer(make([]byte, 64*1024), 8*1024*1024)
-		answered := false
+		var terminal *Event
 		protocolError := ""
 		for scanner.Scan() {
 			var event Event
@@ -293,32 +323,58 @@ func (p commandProvider) Run(ctx context.Context, request Request) (<-chan Event
 				protocolError = err.Error()
 				continue
 			}
-			if event.Kind == Done {
-				answered = true
+			if terminal != nil {
+				protocolError = "provider returned an event after its result"
+				continue
 			}
-			events <- event
+			if event.Kind == Done {
+				copy := event
+				terminal = &copy
+				continue
+			}
+			if !sendEvent(ctx, events, event) {
+				return
+			}
 		}
 		waitErr := command.Wait()
+		if scanErr := scanner.Err(); protocolError == "" && scanErr != nil {
+			protocolError = scanErr.Error()
+		}
+		if protocolError == "" && waitErr != nil {
+			protocolError = strings.TrimSpace(stderr.String())
+			if protocolError == "" {
+				protocolError = waitErr.Error()
+			}
+		}
 		if protocolError != "" {
-			events <- Event{Version: Protocol, Kind: Done, Result: &Result{Failed: true, Reason: protocolError}}
+			sendEvent(ctx, events, Event{Version: Protocol, Kind: Done, Result: &Result{Failed: true, Reason: protocolError}})
 			return
 		}
-		if answered {
+		if terminal != nil {
+			sendEvent(ctx, events, *terminal)
 			return
 		}
 		reason := strings.TrimSpace(stderr.String())
-		if reason == "" && scanner.Err() != nil {
-			reason = scanner.Err().Error()
-		}
-		if reason == "" && waitErr != nil {
-			reason = waitErr.Error()
-		}
 		if reason == "" {
 			reason = p.manifest.Name + " exited without an answer"
 		}
-		events <- Event{Version: Protocol, Kind: Done, Result: &Result{Failed: true, Reason: reason}}
+		sendEvent(ctx, events, Event{Version: Protocol, Kind: Done, Result: &Result{Failed: true, Reason: reason}})
 	}()
 	return events, nil
+}
+
+func sendEvent(ctx context.Context, events chan<- Event, event Event) bool {
+	select {
+	case events <- event:
+		return true
+	default:
+	}
+	select {
+	case events <- event:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }
 
 func validateEvent(event Event) error {
@@ -353,12 +409,13 @@ func environment(values map[string]string) []string {
 	return result
 }
 
-func runJSON(ctx context.Context, plan shared.Plan, request any, response any) error {
+func runJSON(ctx context.Context, plan shared.Plan, request any, response any, directory string) error {
 	payload, err := json.Marshal(request)
 	if err != nil {
 		return err
 	}
-	command := exec.CommandContext(ctx, plan.Argv[0], plan.Argv[1:]...)
+	command := process.CommandContext(ctx, plan.Argv[0], plan.Argv[1:]...)
+	command.Dir = directory
 	command.Env = append(os.Environ(), environment(plan.Env)...)
 	command.Stdin = bytes.NewReader(payload)
 	var stderr bytes.Buffer
@@ -406,8 +463,10 @@ func Validate(name, workingDirectory string) ([]shared.ValidationReport, error) 
 	}
 	var reports []shared.ValidationReport
 	for _, item := range loaded {
-		if name == "" || item.Manifest.Name == name || compatAlias(item.Manifest.Name) == name {
-			reports = append(reports, (shared.Validator{}).Validate(item.Manifest, workingDirectory))
+		if name == "" || item.Manifest.Name == name {
+			report := (shared.Validator{}).Validate(item.Manifest, workingDirectory)
+			validateContract(&report, item.Manifest, workingDirectory)
+			reports = append(reports, report)
 		}
 	}
 	if name != "" && len(reports) == 0 {
@@ -416,4 +475,69 @@ func Validate(name, workingDirectory string) ([]shared.ValidationReport, error) 
 	return reports, nil
 }
 
-func Schema() ([]byte, error) { return shared.Schema() }
+func validateContract(report *shared.ValidationReport, manifest shared.Manifest, workingDirectory string) {
+	for _, action := range []string{ActionGenerate, ActionValidate} {
+		status := shared.CheckOK
+		message := "declared"
+		if _, ok := manifest.Actions[action]; !ok {
+			status = shared.CheckFailed
+			message = "required action is not declared"
+		}
+		report.Checks = append(report.Checks, shared.Check{
+			Kind: "action", Target: action, Status: status, Message: message,
+		})
+	}
+	actions := make([]string, 0, len(manifest.Actions))
+	for action := range manifest.Actions {
+		actions = append(actions, action)
+	}
+	slices.Sort(actions)
+	probe := Request{
+		Prompt: "provider validation",
+		Input:  "validation input",
+		Model:  "validation-model",
+		Schema: map[string]any{"type": "object"},
+		Dir:    workingDirectory,
+	}
+	for _, action := range actions {
+		status := shared.CheckOK
+		message := "rendered"
+		if _, err := manifest.Render(action, probe); err != nil {
+			status = shared.CheckFailed
+			message = err.Error()
+		}
+		report.Checks = append(report.Checks, shared.Check{
+			Kind: "render", Target: action, Status: status, Message: message,
+		})
+	}
+	if !report.OK() {
+		return
+	}
+	plan, err := manifest.Render(ActionValidate, map[string]any{})
+	if err != nil {
+		report.Checks = append(report.Checks, contractCheck(shared.CheckFailed, err.Error()))
+		return
+	}
+	timeout := plan.Timeout
+	if timeout <= 0 || timeout > 5*time.Second {
+		timeout = 5 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	response := ValidationResponse{}
+	err = runJSON(ctx, plan, Envelope{Version: Protocol, Action: ActionValidate}, &response, workingDirectory)
+	if err != nil {
+		report.Checks = append(report.Checks, contractCheck(shared.CheckFailed, err.Error()))
+		return
+	}
+	if response.Version != Protocol || response.Status != "ok" {
+		message := fmt.Sprintf("got version %q and status %q", response.Version, response.Status)
+		report.Checks = append(report.Checks, contractCheck(shared.CheckFailed, message))
+		return
+	}
+	report.Checks = append(report.Checks, contractCheck(shared.CheckOK, "adapter probe passed"))
+}
+
+func contractCheck(status shared.CheckStatus, message string) shared.Check {
+	return shared.Check{Kind: "contract", Target: ActionValidate, Status: status, Message: message}
+}

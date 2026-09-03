@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Result": {
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "structured": {
+          "type": "object"
+        },
+        "failed": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  },
+  "properties": {
+    "version": {
+      "type": "string",
+      "enum": [
+        "provider/v1"
+      ]
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "started",
+        "text",
+        "tool",
+        "notice",
+        "result"
+      ]
+    },
+    "text": {
+      "type": "string"
+    },
+    "tool": {
+      "type": "string"
+    },
+    "result": {
+      "$ref": "#/$defs/Result"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "type"
+  ],
+  "title": "Ask provider event"
+}

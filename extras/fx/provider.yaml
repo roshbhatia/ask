@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/roshbhatia/ask/main/schema/provider.schema.json
+version: provider/v1
+name: fx
+description: fx coding agent CLI
+command: [ask-provider-fx]
+actions:
+  inference.generate:
+    description: Generate an answer with fx
+    argv:
+      - --
+      - fx
+      - ask
+      - --no-save
+      - --no-color
+      - --
+  inference.models:
+    description: List fx models
+    argv: [--models, --, fx, models, --json]
+  provider.validate:
+    description: Validate the fx adapter without model work
+    argv: [--validate, --, fx]
+requires:
+  commands: [fx]
+defaults:
+  timeout: 10m

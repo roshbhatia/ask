@@ -1,14 +1,33 @@
 package schema
 
-import "maps"
+import (
+	"maps"
+	"strings"
+	"text/template"
+)
 
 // Field is the one key an agent uses to ask a question instead of answering.
 const Field = "clarify"
 
+const ruleTemplateText = `
+If this request is ambiguous and a wrong guess costs more than a question does,
+answer with {"{{.}}": "<one short question>"} and nothing else.
+Ask at most one question at a time.
+Otherwise answer in the shape asked for.
+`
+
+var ruleTemplate = template.Must(template.New("clarification-rule").Parse(strings.Join(strings.Fields(ruleTemplateText), " ")))
+
 // Rule tells the agent that the question is available.
-const Rule = "If this request is ambiguous and a wrong guess costs more than a question does, " +
-	"answer with {\"" + Field + "\": \"<one short question>\"} and nothing else. " +
-	"Ask at most one question at a time. Otherwise answer in the shape asked for."
+var Rule = renderRule(Field)
+
+func renderRule(field string) string {
+	var rendered strings.Builder
+	if err := ruleTemplate.Execute(&rendered, field); err != nil {
+		panic(err)
+	}
+	return rendered.String()
+}
 
 // Relaxed answers the shape to send, and whether a question may be answered with.
 //

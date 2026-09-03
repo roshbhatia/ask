@@ -103,7 +103,7 @@ func (p picker) View() string {
 
 		shown.rows = append(shown.rows, split(
 			mark+dim.Render(strconv.Itoa(at+1)+" ")+name+"  "+said,
-			dim.Render(one.Short),
+			"",
 			width,
 		))
 	}
@@ -111,7 +111,7 @@ func (p picker) View() string {
 	return shown.String() + "\n" + dim.Render("  "+p.help.ShortHelpView(picking.ShortHelp())) + "\n"
 }
 
-// ready answers with the first agent that is installed, so the cursor opens on
+// ready answers with the first agent that is installed, so selection opens on
 // one that can actually run.
 func ready(offer []provider.Info) int {
 	for at, one := range offer {

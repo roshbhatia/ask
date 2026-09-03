@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/roshbhatia/ask/main/schema/provider.schema.json
+version: provider/v1
+name: goose
+description: Goose CLI
+command: [ask-provider-goose]
+actions:
+  inference.generate:
+    description: Generate an answer with Goose
+    argv:
+      - --input-mode=prompt
+      - --model-flag=--model
+      - --prompt-flag=--text
+      - --
+      - goose
+      - run
+      - --no-session
+      - --quiet
+      - --output-format
+      - text
+    env:
+      GOOSE_MODE: chat
+  provider.validate:
+    description: Validate the Goose adapter without model work
+    argv: [--validate, --input-mode=prompt, --model-flag=--model, --prompt-flag=--text, --, goose]
+requires:
+  commands: [goose]
+defaults:
+  timeout: 10m

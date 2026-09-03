@@ -8,13 +8,6 @@ builds:
       - CGO_ENABLED=0
     goos: [darwin, linux]
     goarch: [amd64, arm64]
-  - id: ask-provider
-    main: ./cmd/ask-provider
-    binary: ask-provider
-    env:
-      - CGO_ENABLED=0
-    goos: [darwin, linux]
-    goarch: [amd64, arm64]
   - id: ask-provider-text
     main: ./cmd/ask-provider-text
     binary: ask-provider-text
@@ -24,15 +17,10 @@ builds:
     goarch: [amd64, arm64]
 
 archives:
-  - ids: [ask, ask-provider, ask-provider-text]
+  - ids: [ask, ask-provider-text]
     formats: [tar.gz]
     name_template: >-
       {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
-    files:
-      - src: extras/claude/provider.yaml
-        dst: providers/claude/provider.yaml
-      - src: extras/codex/provider.yaml
-        dst: providers/codex/provider.yaml
 
 checksum:
   name_template: checksums.txt

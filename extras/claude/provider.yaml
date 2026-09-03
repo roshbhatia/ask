@@ -2,12 +2,14 @@
 version: provider/v1
 name: claude
 description: Claude Code
-command: [ask-provider, claude]
+command: [ask-provider-claude]
 actions:
   inference.generate:
     description: Generate an answer with Claude Code
   inference.models:
     description: List Claude Code model aliases
+  provider.validate:
+    description: Validate the Claude Code adapter without model work
 requires:
   commands: [claude]
 defaults:

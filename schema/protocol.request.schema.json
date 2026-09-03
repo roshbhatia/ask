@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Request": {
+      "properties": {
+        "prompt": {
+          "type": "string"
+        },
+        "input": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "object"
+        },
+        "directory": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "prompt",
+        "directory"
+      ]
+    }
+  },
+  "properties": {
+    "version": {
+      "type": "string",
+      "enum": [
+        "provider/v1"
+      ]
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "inference.generate",
+        "inference.models",
+        "provider.validate"
+      ]
+    },
+    "request": {
+      "$ref": "#/$defs/Request"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "version",
+    "action",
+    "request"
+  ],
+  "title": "Ask provider request"
+}

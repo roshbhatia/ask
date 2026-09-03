@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+emit() {
+  printf '%s\n' "$1"
+  sleep 0.15
+}
+
+request=$(</dev/stdin)
+if [[ $request == *'"action":"provider.validate"'* ]]; then
+  printf '%s\n' '{"version":"provider/v1","status":"ok"}'
+  exit 0
+fi
+
+emit '{"version":"provider/v1","type":"started","text":"demo-review"}'
+emit '{"version":"provider/v1","type":"text","text":"I will inspect the parser boundary and run its focused tests."}'
+emit '{"version":"provider/v1","type":"tool","tool":"shell","text":"rg -n \"ParseToken|ValidateToken\" internal/auth"}'
+emit '{"version":"provider/v1","type":"tool","tool":"shell","text":"go test ./internal/auth"}'
+emit '{"version":"provider/v1","type":"text","text":"Review complete.\n\n- Rejects missing Bearer prefixes before lookup.\n- Covers empty, malformed, rejected, and accepted tokens.\n- Focused parser tests pass."}'
+emit '{"version":"provider/v1","type":"result","result":{"text":"Review complete.\n\n- Rejects missing Bearer prefixes before lookup.\n- Covers empty, malformed, rejected, and accepted tokens.\n- Focused parser tests pass."}}'

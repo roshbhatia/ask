@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -32,25 +33,24 @@ Anything on stdin goes to the agent along with the prompt, so a pipe is optional
 
   %[1]s what does git rebase --onto do
   cat main.go | %[1]s summarise this file
-  cat log.txt | %[1]s -p cdx --schema 'level:error|warn|info, message:string' -- classify this
+  cat log.txt | %[1]s -p local-model --schema 'level:error|warn|info, message:string' -- classify this
   %[1]s --show-input | pbcopy
 
 The prompt is the bare words after the flags, so the -- is only needed when a flag
 comes first. Quote a prompt that holds shell metacharacters, as in
-%[1]s -p cld 'what does the | operator do', or the shell reads them before %[1]s does.
+%[1]s -p local-model 'what does the | operator do', or the shell reads them before %[1]s does.
 
 No agent is the default one. %[1]s takes the first of these that says which to run:
 the -p flag, the name it was called by, $ASK_PROVIDER, then provider.default from
 the settings. With none of them it opens a picker.
 
-  %[1]s --set-config provider.default=cld
+  %[1]s --set-config provider.default=local-model
   %[1]s --get-config provider.default
   %[1]s --list-config
 
-The short names are wrappers on PATH: _cld is claude, _cdx is codex, and a
-trailing j asks for JSON, so _cldj is claude with --json. Bare _ and _j name no
-agent, so they run whichever $ASK_PROVIDER or the settings name; %[1]s --list-config
-prints which one that is and where it came from.
+The _ and _j wrappers use whichever provider $ASK_PROVIDER or the settings name.
+The trailing j asks for JSON. %[1]s --list-config prints the selected provider
+and where that choice came from.
 
 Providers answer --json and --schema in the shape asked for. The answer is
 checked against that shape here, so a run that answers outside it is a failure
@@ -123,28 +123,31 @@ func called() string {
 	return filepath.Base(os.Args[0])
 }
 
-// wrapper reads the name the binary was called by. _cld is claude, _cldj is
-// claude answering JSON, and bare _ names no agent at all.
-func wrapper(name string) (short string, asJSON bool, known bool) {
+// wrapper reads the name the binary was called by. A trailing j asks for JSON.
+func wrapper(name string) (short string, asJSON bool, known bool, err error) {
 	rest, is := strings.CutPrefix(name, "_")
 	if !is {
-		return "", false, false
+		return "", false, false, nil
 	}
 	if rest == "" {
-		return "", false, true
+		return "", false, true, nil
 	}
-	if _, found := provider.Lookup(rest); found {
-		return rest, false, true
+	if _, found, lookupErr := provider.Lookup(rest); lookupErr != nil {
+		return "", false, false, lookupErr
+	} else if found {
+		return rest, false, true, nil
 	}
 	if trimmed, cut := strings.CutSuffix(rest, "j"); cut {
 		if trimmed == "" {
-			return "", true, true
+			return "", true, true, nil
 		}
-		if _, found := provider.Lookup(trimmed); found {
-			return trimmed, true, true
+		if _, found, lookupErr := provider.Lookup(trimmed); lookupErr != nil {
+			return "", false, false, lookupErr
+		} else if found {
+			return trimmed, true, true, nil
 		}
 	}
-	return "", false, false
+	return "", false, false, nil
 }
 
 func command(opts *options) *cobra.Command {
@@ -173,7 +176,7 @@ func command(opts *options) *cobra.Command {
 	flags.BoolVarP(&opts.json, "json", "j", false, "answer in JSON, shape unspecified")
 	flags.StringVarP(&opts.spec, "schema", "s", "", "answer in JSON, in this shape: a field spec such as 'name:string, tags:[]string, count:int?', where a trailing question mark makes a field optional and a bar makes an enum, or @path to a JSON Schema file")
 	flags.StringVarP(&opts.model, "model", "m", "", "which model to run; press tab for the ones this agent names")
-	flags.StringVarP(&opts.provider, "provider", "p", "", "which agent to run: "+strings.Join(provider.Names(), ", "))
+	flags.StringVarP(&opts.provider, "provider", "p", "", "which installed provider to run")
 	flags.BoolVar(&opts.replay, "replay", false, "rerun the last input, with this prompt or the last one")
 	flags.BoolVarP(&opts.last, "last", "l", false, "send what the previous command printed, instead of stdin")
 	flags.BoolVarP(&opts.quiet, "quiet", "q", false, "no progress output at all")
@@ -253,10 +256,18 @@ func generateCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			for path, content := range map[string][]byte{
+			generatedFiles := map[string][]byte{
 				filepath.Join(root, "schema", "config.schema.json"):   configSchema,
 				filepath.Join(root, "schema", "provider.schema.json"): providerSchema,
-			} {
+			}
+			wireSchemas, err := provider.WireSchemas()
+			if err != nil {
+				return err
+			}
+			for name, content := range wireSchemas {
+				generatedFiles[filepath.Join(root, "schema", name)] = content
+			}
+			for path, content := range generatedFiles {
 				if err := generated(path, content, check); err != nil {
 					return err
 				}
@@ -303,6 +314,18 @@ func providerCommand() *cobra.Command {
 			}
 			for _, item := range loaded {
 				fmt.Printf("%-12s %s\n", item.Manifest.Name, item.Manifest.Description)
+				actions := make([]string, 0, len(item.Manifest.Actions))
+				for name := range item.Manifest.Actions {
+					actions = append(actions, name)
+				}
+				sort.Strings(actions)
+				for _, name := range actions {
+					action := item.Manifest.Actions[name]
+					fmt.Printf("  %-22s %s\n", name, action.Description)
+					invocation := append([]string(nil), item.Manifest.Command...)
+					invocation = append(invocation, action.Argv...)
+					fmt.Printf("    command: %s\n", strings.Join(invocation, " "))
+				}
 			}
 			return nil
 		},
@@ -547,12 +570,15 @@ func addCompletionCommands(spec *completion.Command, parent string, cmd *cobra.C
 
 // models offers what the agent about to run accepts, read from that CLI's help.
 func models(opts options) []string {
-	named, _ := source()
+	named, _, err := source()
+	if err != nil {
+		return nil
+	}
 	if opts.provider != "" {
 		named = opts.provider
 	}
-	one, found := provider.Lookup(named)
-	if !found {
+	one, found, err := provider.Lookup(named)
+	if err != nil || !found {
 		return nil
 	}
 
@@ -563,15 +589,19 @@ func models(opts options) []string {
 	return offer
 }
 
-// agents offers every name an agent answers to, long and short.
+// agents offers every discovered provider.
 func agents() []string {
-	offer := make([]string, 0, len(provider.Known())*2)
-	for _, one := range provider.Known() {
+	known, err := provider.Known()
+	if err != nil {
+		return nil
+	}
+	offer := make([]string, 0, len(known))
+	for _, one := range known {
 		says := one.Blurb
 		if !one.Ready() {
 			says = one.Binary + " is not on PATH"
 		}
-		offer = append(offer, one.Name+"\t"+says, one.Short+"\t"+says)
+		offer = append(offer, one.Name+"\t"+says)
 	}
 	return offer
 }
@@ -591,7 +621,11 @@ func pairs(typed string) []string {
 			continue
 		}
 		offer := make([]string, 0)
-		for _, value := range setting.Values() {
+		values, err := setting.Values()
+		if err != nil {
+			return nil
+		}
+		for _, value := range values {
 			offer = append(offer, key+"="+value)
 		}
 		return offer
@@ -602,23 +636,32 @@ func pairs(typed string) []string {
 // source names the agent that will run and which of the four ways named it. The
 // settings file is the last of the four, so --set-config can report a value that
 // nothing reads; this is what lets the settings output say so.
-func source() (named string, from string) {
-	if short, _, _ := wrapper(called()); short != "" {
-		return short, "the name it was called by"
+func source() (named string, from string, err error) {
+	short, _, _, err := wrapper(called())
+	if err != nil {
+		return "", "", err
+	}
+	if short != "" {
+		return short, "the name it was called by", nil
 	}
 	if named := os.Getenv("ASK_PROVIDER"); named != "" {
-		return named, "$ASK_PROVIDER"
+		return named, "$ASK_PROVIDER", nil
 	}
 	if settled, err := config.Get(config.ProviderDefault); err == nil && settled != "" {
-		return settled, config.ProviderDefault
+		return settled, config.ProviderDefault, nil
+	} else if err != nil {
+		return "", "", err
 	}
-	return "", ""
+	return "", "", nil
 }
 
 // chosen walks the ways to name an agent, most explicit first, and asks only when
 // none of them says anything.
 func chosen(opts options) (provider.Provider, error) {
-	short, _, _ := wrapper(called())
+	short, _, _, err := wrapper(called())
+	if err != nil {
+		return nil, err
+	}
 	for _, named := range []string{opts.provider, short, os.Getenv("ASK_PROVIDER")} {
 		if named != "" {
 			return provider.Find(named)
@@ -715,7 +758,9 @@ func settings(opts options) (bool, error) {
 		for _, line := range lines {
 			fmt.Println(line)
 		}
-		if named, from := source(); named != "" {
+		if named, from, sourceErr := source(); sourceErr != nil {
+			return true, sourceErr
+		} else if named != "" {
 			fmt.Printf("\neffective provider: %s (from %s)\n", named, from)
 		}
 		return true, nil
@@ -832,7 +877,10 @@ func converse(req provider.Request, strict map[string]any, opts options, agent p
 			if err != nil {
 				return nil, err
 			}
-			req.Prompt += fmt.Sprintf("\n\nYou asked: %s\nThe answer: %s", question, reply)
+			req.Prompt, err = templates.WithAnsweredQuestion(req.Prompt, question, reply)
+			if err != nil {
+				return nil, err
+			}
 			continue
 		}
 
@@ -843,8 +891,10 @@ func converse(req provider.Request, strict map[string]any, opts options, agent p
 		if round == rounds {
 			return nil, fmt.Errorf("%s: %s", agent.Name(), wrong)
 		}
-		req.Prompt += "\n\nYour last answer was rejected. " + wrong.Error() +
-			"\nAnswer again, in the shape asked for."
+		req.Prompt, err = templates.WithRejectedAnswer(req.Prompt, wrong.Error())
+		if err != nil {
+			return nil, err
+		}
 	}
 }
 
@@ -867,7 +917,11 @@ func run(opts options) error {
 		return printSaved(which)
 	}
 
-	if _, asJSON, _ := wrapper(called()); asJSON {
+	_, asJSON, _, err := wrapper(called())
+	if err != nil {
+		return err
+	}
+	if asJSON {
 		opts.json = true
 	}
 	if opts.spec != "" && opts.schemaTemplate != "" {
@@ -938,13 +992,16 @@ func run(opts options) error {
 	loose, mayAsk := schema.Relaxed(shape)
 	req := provider.Request{
 		Prompt: prompt,
-		Input:  input,
+		Input:  string(input),
 		Model:  opts.model,
 		Schema: loose,
 		Dir:    here,
 	}
 	if mayAsk {
-		req.Prompt += "\n\n" + schema.Rule
+		req.Prompt, err = templates.WithClarificationRule(req.Prompt, schema.Rule)
+		if err != nil {
+			return err
+		}
 	}
 
 	result, err := converse(req, shape, opts, agent)

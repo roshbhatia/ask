@@ -1,0 +1,13 @@
+version: provider/v1
+name: demo
+description: Screenshot fixture
+command: [ask-provider-demo]
+actions:
+  inference.generate:
+    description: Generate a deterministic demonstration
+  provider.validate:
+    description: Validate the demonstration provider
+requires:
+  commands: [ask-provider-demo]
+defaults:
+  timeout: 30s
