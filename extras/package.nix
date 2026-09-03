@@ -43,10 +43,21 @@ let
           exec ask-provider-${name}-raw "$@"
         '';
   };
+  adapterPackage = pkgs.runCommand "ask-provider-${name}-adapter-${version}" { } ''
+    mkdir -p "$out/bin" "$out/share/ask/providers/${name}"
+    ln -s ${lib.getExe entry} "$out/bin/${executable}"
+    install -m 0444 ${manifest} "$out/share/ask/providers/${name}/provider.yaml"
+  '';
 in
-pkgs.runCommand "ask-provider-${name}-${version}" { } ''
-  mkdir -p "$out/bin" "$out/share/ask/providers/${name}"
-  ln -s ${lib.getExe entry} "$out/bin/${executable}"
-  ln -s ${lib.getExe runtime} "$out/bin/${command}"
-  install -m 0444 ${manifest} "$out/share/ask/providers/${name}/provider.yaml"
-''
+pkgs.symlinkJoin {
+  name = "ask-provider-${name}-${version}";
+  paths = [
+    adapterPackage
+    runtime
+  ];
+  passthru = {
+    adapter = adapterPackage;
+    providerRuntime = runtime;
+  };
+  meta = adapterPackage.meta or { };
+}

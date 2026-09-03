@@ -125,7 +125,8 @@
           );
           extras = pkgs.symlinkJoin {
             name = "ask-extras-${version}";
-            paths = lib.attrValues providers;
+            paths = map (provider: provider.adapter) (lib.attrValues providers);
+            passthru.providers = providers;
           };
           full = pkgs.symlinkJoin {
             name = "ask-full-${version}";
@@ -237,6 +238,16 @@
             test "$(${packages.full}/bin/ask provider list --json | jq 'length')" -eq ${toString (builtins.length names)}
             touch "$out"
           '';
+          provider-aggregate-boundary =
+            pkgs.runCommand "ask-provider-aggregate-boundary" { nativeBuildInputs = [ pkgs.findutils ]; }
+              ''
+                test "$(find ${packages.extras}/bin -type l -o -type f | wc -l | tr -d ' ')" -eq ${toString (builtins.length names)}
+                if find ${packages.extras}/bin -mindepth 1 -maxdepth 1 -type l -exec basename {} \; \
+                  | grep -Ev '^ask-provider-'; then
+                  exit 1
+                fi
+                touch "$out"
+              '';
         }
       );
 
