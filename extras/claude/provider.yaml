@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/roshbhatia/ask/main/schema/provider.schema.json
+version: provider/v1
+name: claude
+description: Claude Code
+command: [ask-provider, claude]
+actions:
+  inference.generate:
+    description: Generate an answer with Claude Code
+  inference.models:
+    description: List Claude Code model aliases
+requires:
+  commands: [claude]
+defaults:
+  timeout: 10m

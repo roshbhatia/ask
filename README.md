@@ -4,11 +4,12 @@
 
 ![Ask animated code review](docs/ask.gif)
 
-`ask` sends a prompt and optional standard input to a local agent harness.
+`ask` sends a prompt and optional standard input to any local agent harness that
+implements its provider protocol.
 
-It supports Claude and Codex, typed JSON output, reusable prompt and schema
-templates, and interactive provider selection. `wrappers.txt` defines its short
-command names.
+The Nix package includes Claude Code and Codex providers. Ask also supports typed
+JSON output, reusable prompt and schema templates, and interactive provider
+selection. `wrappers.txt` defines its short command names.
 
 Pipe data when the question needs context:
 
@@ -70,11 +71,76 @@ directory.
 
 Generate shell completions with `ask completion bash`, `zsh`, `fish`, or `nu`.
 
+## Providers
+
+Ask discovers integrations from `~/.config/ask/providers/<name>/provider.yaml`,
+then each provider root in `ASK_PROVIDER_PATH`. Flat manifest files also work
+for compatibility. The first manifest with a given name wins. The Nix
+package adds its packaged providers to that path, so a user manifest can replace
+one without changing Ask. A release archive also discovers its adjacent
+`providers` directory after extraction.
+
+Each integration owns one directory and one `provider.yaml` file:
+
+```text
+extras/
+├── claude/provider.yaml
+└── codex/provider.yaml
+```
+
+A provider manifest declares a command and the actions it supports. Each
+argument and environment value is an independent Go template. Ask executes the
+rendered argument vector directly. It never inserts a shell.
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/roshbhatia/ask/main/schema/provider.schema.json
+version: provider/v1
+name: local-model
+description: A local one-shot model
+command: [ask-provider-text]
+actions:
+  inference.generate:
+    description: Generate an answer
+    argv: [model-cli, --model, "{{.Model}}", --prompt, "{{.Prompt}}"]
+requires:
+  commands: [model-cli]
+defaults:
+  timeout: 2m
+```
+
+The generic `ask-provider-text` adapter covers one-shot text commands. A
+structured adapter can instead read one JSON request from standard input and
+write newline-delimited `provider/v1` events to standard output. This keeps
+harness-specific arguments and output parsing outside Ask's core.
+
+Inspect and validate the active integrations before a scripted run:
+
+```bash
+ask provider list
+ask provider validate
+ask provider validate local-model --json
+```
+
+Ask reads typed YAML from `~/.config/ask/config.yaml`. A legacy `config.json`
+still works when the YAML file does not exist.
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/roshbhatia/ask/main/schema/config.schema.json
+version: ask.config/v1
+provider:
+  default: codex
+```
+
+`ASK_CONFIG` selects another file. `ASK_PROVIDER_DEFAULT` overrides the YAML
+setting, while the existing `ASK_PROVIDER` run-time choice still has higher
+precedence.
+
 ## Development
 
 ```bash
 nix develop
 go test -race ./...
+./hack/generate.sh --check
 nix flake check
 ./hack/screenshots.sh
 ```

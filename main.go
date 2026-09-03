@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -51,7 +52,7 @@ trailing j asks for JSON, so _cldj is claude with --json. Bare _ and _j name no
 agent, so they run whichever $ASK_PROVIDER or the settings name; %[1]s --list-config
 prints which one that is and where it came from.
 
-Both agents answer --json and --schema in the shape asked for. The answer is
+Providers answer --json and --schema in the shape asked for. The answer is
 checked against that shape here, so a run that answers outside it is a failure
 rather than a wrongly shaped success.
 
@@ -227,9 +228,124 @@ func command(opts *options) *cobra.Command {
 	})
 	cmd.CompletionOptions.DisableDefaultCmd = true
 	cmd.AddCommand(completionCommand(cmd))
+	cmd.AddCommand(generateCommand())
 	cmd.AddCommand(promptCommand())
+	cmd.AddCommand(providerCommand())
 	cmd.AddCommand(schemaCommand())
 
+	return cmd
+}
+
+func generateCommand() *cobra.Command {
+	var root string
+	var check bool
+	cmd := &cobra.Command{
+		Use:    "generate",
+		Short:  "Generate committed schemas",
+		Args:   cobra.NoArgs,
+		Hidden: true,
+		RunE: func(*cobra.Command, []string) error {
+			configSchema, err := config.Schema()
+			if err != nil {
+				return err
+			}
+			providerSchema, err := provider.Schema()
+			if err != nil {
+				return err
+			}
+			for path, content := range map[string][]byte{
+				filepath.Join(root, "schema", "config.schema.json"):   configSchema,
+				filepath.Join(root, "schema", "provider.schema.json"): providerSchema,
+			} {
+				if err := generated(path, content, check); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&root, "root", ".", "repository root")
+	cmd.Flags().BoolVar(&check, "check", false, "fail when a generated file differs")
+	return cmd
+}
+
+func generated(path string, content []byte, check bool) error {
+	if check {
+		existing, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if !bytes.Equal(existing, content) {
+			return fmt.Errorf("%s is stale; run hack/generate.sh", path)
+		}
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, content, 0o644)
+}
+
+func providerCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "provider", Short: "Inspect external inference providers"}
+	var listJSON bool
+	list := &cobra.Command{
+		Use:   "list",
+		Short: "List discovered providers",
+		Args:  cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			loaded, err := provider.Loaded()
+			if err != nil {
+				return err
+			}
+			if listJSON {
+				return json.NewEncoder(os.Stdout).Encode(loaded)
+			}
+			for _, item := range loaded {
+				fmt.Printf("%-12s %s\n", item.Manifest.Name, item.Manifest.Description)
+			}
+			return nil
+		},
+	}
+	list.Flags().BoolVar(&listJSON, "json", false, "print JSON")
+
+	var validateJSON bool
+	validate := &cobra.Command{
+		Use:   "validate [NAME]",
+		Short: "Validate provider manifests and dependencies",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			name := ""
+			if len(args) == 1 {
+				name = args[0]
+			}
+			here, _ := os.Getwd()
+			reports, err := provider.Validate(name, here)
+			if err != nil {
+				return err
+			}
+			if validateJSON {
+				return json.NewEncoder(os.Stdout).Encode(reports)
+			}
+			failed := false
+			for _, report := range reports {
+				status := "ok"
+				if !report.OK() {
+					status, failed = "failed", true
+				}
+				fmt.Printf("%s  %s\n", report.Provider, status)
+				for _, check := range report.Checks {
+					fmt.Printf("  %-11s %-5s %s\n", check.Kind, check.Status, check.Message)
+				}
+			}
+			if failed {
+				return errors.New("provider validation failed")
+			}
+			return nil
+		},
+	}
+	validate.Flags().BoolVar(&validateJSON, "json", false, "print JSON")
+	cmd.AddCommand(list, validate)
 	return cmd
 }
 
@@ -520,7 +636,11 @@ func chosen(opts options) (provider.Provider, error) {
 	if !term.IsTerminal(int(os.Stderr.Fd())) {
 		return nil, fmt.Errorf("say which agent to run with -p, set $ASK_PROVIDER, or set %s", config.ProviderDefault)
 	}
-	picked, err := ui.Pick(provider.Known())
+	known, err := provider.Discover()
+	if err != nil {
+		return nil, err
+	}
+	picked, err := ui.Pick(known)
 	if err != nil {
 		return nil, err
 	}

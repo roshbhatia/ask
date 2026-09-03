@@ -43,10 +43,23 @@
           pkgs = nixpkgs.legacyPackages.${system};
           ask = pkgs.buildGoModule {
             pname = "ask";
-            version = "0.3.0";
+            version = "0.4.0";
             src = ./.;
-            vendorHash = "sha256-b//E+FeqYdnE5tfwmkoteshjnHkykU8DPuloc8MlT0M=";
-            nativeBuildInputs = [ pkgs.installShellFiles ];
+            vendorHash = "sha256-8gN29eM8LPF3UkNxpx86sa7trSdBt0slgZ1Oh3Ygd7g=";
+            subPackages = [
+              "."
+              "./cmd/ask-provider"
+              "./cmd/ask-provider-text"
+            ];
+            nativeBuildInputs = [
+              pkgs.cue
+              pkgs.installShellFiles
+              pkgs.makeWrapper
+            ];
+            preCheck = ''
+              ./hack/generate.sh --check
+              go test -race ./...
+            '';
             postInstall = ''
               installShellCompletion \
                 --cmd ask \
@@ -55,6 +68,17 @@
                 --zsh <("$out/bin/ask" completion zsh)
               mkdir -p "$out/share/nushell/vendor/autoload"
               "$out/bin/ask" completion nu > "$out/share/nushell/vendor/autoload/ask.nu"
+
+              mkdir -p "$out/share/ask/providers"
+              while IFS= read -r -d $'\0' manifest; do
+                name="$(basename "$(dirname "$manifest")")"
+                mkdir -p "$out/share/ask/providers/$name"
+                cp "$manifest" "$out/share/ask/providers/$name/provider.yaml"
+              done < <(find ${./extras} -mindepth 2 -maxdepth 2 -name provider.yaml -print0)
+
+              wrapProgram "$out/bin/ask" \
+                --prefix PATH : "$out/bin" \
+                --suffix ASK_PROVIDER_PATH : "$out/share/ask/providers"
             '';
             meta = {
               description = "Send typed questions and input to local agent harnesses";
@@ -95,6 +119,7 @@
               pkgs.gotools
               pkgs.go-tools
               pkgs.goreleaser
+              pkgs.cue
               pkgs.ripgrep
               pkgs.charm-freeze
               pkgs.vhs

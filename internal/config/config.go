@@ -10,21 +10,31 @@ import (
 	"sort"
 	"strings"
 
+	shared "github.com/roshbhatia/go-utils/config"
+	"go.yaml.in/yaml/v3"
+
 	"github.com/roshbhatia/ask/internal/provider"
 )
 
-const ProviderDefault = "provider.default"
+const (
+	ProviderDefault = "provider.default"
+	Version         = "ask.config/v1"
+)
+
+type Provider struct {
+	Default string `json:"default,omitempty" yaml:"default,omitempty"`
+}
+
+type File struct {
+	Version  string   `json:"version" yaml:"version" jsonschema:"enum=ask.config/v1"`
+	Provider Provider `json:"provider,omitempty" yaml:"provider,omitempty"`
+}
 
 type Setting struct {
-	Key string
-
-	Help string
-
-	// Values answers with the whole allowed set, or nil when any value will do.
+	Key    string
+	Help   string
 	Values func() []string
-
-	// Clean rewrites an accepted value into the one spelling it is stored as.
-	Clean func(string) (string, error)
+	Clean  func(string) (string, error)
 }
 
 var settings = []Setting{{
@@ -59,32 +69,58 @@ func find(key string) (Setting, error) {
 	return Setting{}, fmt.Errorf("unknown setting %q, known: %s", key, strings.Join(Keys(), ", "))
 }
 
+func options() shared.Options { return shared.Options{Name: "ask", EnvPrefix: "ASK"} }
+
 func Path() string {
+	path, err := shared.Path(options())
+	if err == nil {
+		return path
+	}
+	return filepath.Join(".config", "ask", "config.yaml")
+}
+
+func legacyPath() string {
 	base := os.Getenv("XDG_CONFIG_HOME")
 	if base == "" {
-		base = filepath.Join(os.Getenv("HOME"), ".config")
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return filepath.Join(".config", "ask", "config.json")
+		}
+		base = filepath.Join(home, ".config")
 	}
 	return filepath.Join(base, "ask", "config.json")
 }
 
-// Load answers with an empty set when no file has been written yet, and with an
-// error when one has been written and will not parse.
-func Load() (map[string]string, error) {
-	raw, err := os.ReadFile(Path())
-	if errors.Is(err, os.ErrNotExist) {
-		return map[string]string{}, nil
+func loadFile() (File, error) {
+	defaults := File{Version: Version}
+	if _, err := os.Stat(Path()); errors.Is(err, os.ErrNotExist) && os.Getenv("ASK_CONFIG") == "" {
+		legacy, readErr := os.ReadFile(legacyPath())
+		if readErr == nil && len(strings.TrimSpace(string(legacy))) > 0 {
+			values := map[string]string{}
+			if err := json.Unmarshal(legacy, &values); err != nil {
+				return defaults, fmt.Errorf("%s will not parse: %w", legacyPath(), err)
+			}
+			defaults.Provider.Default = values[ProviderDefault]
+		} else if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+			return defaults, readErr
+		}
 	}
+	loaded, err := shared.Load(defaults, options())
+	if err != nil {
+		return defaults, err
+	}
+	if loaded.Version != Version {
+		return defaults, fmt.Errorf("%s version must be %q", Path(), Version)
+	}
+	return loaded, nil
+}
+
+func Load() (map[string]string, error) {
+	loaded, err := loadFile()
 	if err != nil {
 		return nil, err
 	}
-	held := map[string]string{}
-	if len(strings.TrimSpace(string(raw))) == 0 {
-		return held, nil
-	}
-	if err := json.Unmarshal(raw, &held); err != nil {
-		return nil, fmt.Errorf("%s will not parse: %w", Path(), err)
-	}
-	return held, nil
+	return map[string]string{ProviderDefault: loaded.Provider.Default}, nil
 }
 
 func Get(key string) (string, error) {
@@ -98,7 +134,6 @@ func Get(key string) (string, error) {
 	return held[key], nil
 }
 
-// Set takes one KEY=VALUE pair, so a single flag carries both halves.
 func Set(pair string) (string, string, error) {
 	key, value, ok := strings.Cut(pair, "=")
 	if !ok {
@@ -116,31 +151,43 @@ func Set(pair string) (string, string, error) {
 		}
 	}
 
-	held, err := Load()
+	loaded, err := loadFile()
 	if err != nil {
 		return "", "", err
 	}
-	if value == "" {
-		delete(held, key)
-	} else {
-		held[key] = value
-	}
-	return key, value, save(held)
+	loaded.Provider.Default = value
+	return key, value, save(loaded)
 }
 
-func save(held map[string]string) error {
+func save(value File) error {
 	path := Path()
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	raw, err := json.MarshalIndent(held, "", "  ")
+	raw, err := yaml.Marshal(value)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(raw, '\n'), 0o600)
+	temporary, err := os.CreateTemp(filepath.Dir(path), ".config-*.yaml")
+	if err != nil {
+		return err
+	}
+	name := temporary.Name()
+	defer func() { _ = os.Remove(name) }()
+	if err := temporary.Chmod(0o600); err != nil {
+		_ = temporary.Close()
+		return err
+	}
+	if _, err := temporary.Write(raw); err != nil {
+		_ = temporary.Close()
+		return err
+	}
+	if err := temporary.Close(); err != nil {
+		return err
+	}
+	return os.Rename(name, path)
 }
 
-// List answers with every known setting, so an unset one is still visible.
 func List() ([]string, error) {
 	held, err := Load()
 	if err != nil {
@@ -157,3 +204,5 @@ func List() ([]string, error) {
 	sort.Strings(lines)
 	return lines, nil
 }
+
+func Schema() ([]byte, error) { return shared.Schema[File]("Ask configuration") }

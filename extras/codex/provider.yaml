@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/roshbhatia/ask/main/schema/provider.schema.json
+version: provider/v1
+name: codex
+description: Codex CLI
+command: [ask-provider, codex]
+actions:
+  inference.generate:
+    description: Generate an answer with Codex
+requires:
+  commands: [codex]
+defaults:
+  timeout: 10m
