@@ -65,7 +65,11 @@ func isExitError(err error) bool {
 func TestCommandContextCompletesNormally(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	if err := CommandContext(ctx, "/usr/bin/true").Run(); err != nil {
+	truePath, err := exec.LookPath("true")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := CommandContext(ctx, truePath).Run(); err != nil {
 		t.Fatal(err)
 	}
 }
