@@ -11,6 +11,30 @@ The default Nix package contains no providers. Ask also supports typed JSON
 output, reusable prompt and schema templates, and interactive provider
 selection. `wrappers.txt` defines its provider-neutral short command names.
 
+## Install
+<!-- BEGIN GENERATED:install -->
+
+Choose one Ask package. These alternatives must not be installed together:
+
+~~~bash
+# Core only. Install providers separately.
+nix profile install github:roshbhatia/ask#ask
+
+# Core plus the eight providers packaged by the root flake.
+nix profile install github:roshbhatia/ask#full
+
+# Core plus every maintained provider, including standalone extras.
+nix profile install 'github:roshbhatia/ask?dir=extras#full'
+~~~
+
+Homebrew installs the provider-neutral core:
+
+~~~bash
+brew install roshbhatia/tap/ask
+~~~
+
+<!-- END GENERATED:install -->
+
 Pipe data when the question needs context:
 
 ```bash
@@ -71,6 +95,20 @@ directory.
 
 Generate shell completions with `ask completion bash`, `zsh`, `fish`, or `nu`.
 
+## Terminal snapshots
+
+`--last` is terminal-neutral. A shell integration sets a stable
+`ASK_CAPTURE_ID` and pipes its current text into the hidden `--capture` flag at
+command boundaries:
+
+```bash
+terminal-snapshot-command | ASK_CAPTURE_ID="$session_id" ask --capture
+cargo build; ask --last 'Explain the compiler error and propose the smallest fix.'
+```
+
+Ask only rotates the supplied snapshots. The integration owns terminal
+discovery and capture, so Ask does not depend on a terminal or multiplexer.
+
 ## Providers
 
 Ask discovers integrations from `~/.config/ask/providers/<name>/provider.yaml`,
@@ -84,14 +122,14 @@ packages its adapter and runtime dependencies:
 
 ```text
 extras/
-├── antigravity/{default.nix,provider.yaml}
+├── antigravity/{default.nix,main.go,provider.yaml}
 ├── claude/{default.nix,main.go,provider.yaml}
 ├── codex/{default.nix,main.go,provider.yaml}
-├── copilot/{default.nix,provider.yaml}
-├── crush/{default.nix,provider.yaml}
-├── cursor/{default.nix,provider.yaml}
-├── fx/{default.nix,runtime.nix,provider.yaml}
-├── goose/{default.nix,provider.yaml}
+├── copilot/{default.nix,main.go,provider.yaml}
+├── crush/{default.nix,main.go,provider.yaml}
+├── cursor/{default.nix,main.go,provider.yaml}
+├── fx/{default.nix,main.go,runtime.nix,provider.yaml}
+├── goose/{default.nix,main.go,provider.yaml}
 └── hermes/{flake.nix,main.go,provider.yaml}
 ```
 
@@ -127,11 +165,11 @@ defaults:
   timeout: 2m
 ```
 
-The optional `ask-provider-text` adapter covers one-shot text commands. A
-provider package can wrap it under its own command name, or supply a structured
-adapter. Each adapter reads one JSON request from standard input and writes
-newline-delimited `provider/v1` events to standard output. Harness-specific
-arguments and output parsing stay outside Ask's core.
+Each provider owns its executable and manifest. Simple command providers reuse
+the neutral Go adapter library under `extras/internal/textadapter`; streaming
+providers implement the same protocol directly. Ask core does not install or
+name either kind. Each executable reads one JSON request from standard input
+and writes newline-delimited `provider/v1` events to standard output.
 
 The generated wire schemas document each message:
 
@@ -147,15 +185,9 @@ one `result`. `inference.models` returns one models document.
 `provider.validate` performs a deterministic local adapter probe and returns
 `{"version":"provider/v1","status":"ok"}` without model work.
 
-The flake publishes one package per built-in extra:
-
-```bash
-nix profile install github:roshbhatia/ask#ask github:roshbhatia/ask#provider-cursor
-nix profile install github:roshbhatia/ask#full    # Ask plus root-flake providers
-nix profile install github:roshbhatia/ask#extras  # Root-flake providers only
-```
-
-Hermes owns its larger runtime flake and remains separate from Ask core:
+The generated provider table lists every package. Hermes owns its larger runtime
+flake and remains separate from Ask core. Install it alone from that flake, or
+use the all-provider `extras` flake:
 
 ```bash
 nix profile install 'github:roshbhatia/ask?dir=extras/hermes'
@@ -196,3 +228,112 @@ go test -race ./...
 nix flake check
 ./hack/screenshots.sh
 ```
+
+## Command reference
+<!-- BEGIN GENERATED:commands -->
+
+### `ask`
+
+Agents in your shell!
+
+| Option | Description |
+| --- | --- |
+| `--get-config` `<value>` | print one setting and exit |
+| `--json`, `-j` | answer in JSON, shape unspecified |
+| `--last`, `-l` | send what the previous command printed, instead of stdin |
+| `--list-config` | print every setting and exit |
+| `--model`, `-m` `<value>` | which model to run; press tab for the ones this agent names |
+| `--provider`, `-p` `<value>` | which installed provider to run |
+| `--quiet`, `-q` | no progress output at all |
+| `--replay` | rerun the last input, with this prompt or the last one |
+| `--schema`, `-s` `<value>` | answer in JSON, in this shape: a field spec such as 'name:string, tags:[]string, count:int?', where a trailing question mark makes a field optional and a bar makes an enum, or @path to a JSON Schema file |
+| `--schema-template` `<value>` | use a named schema template |
+| `--set-config` `<value>` | write one setting, as KEY=VALUE, and exit |
+| `--show-input` | print the last input and exit |
+| `--show-last` | print what --last would send and exit |
+| `--show-output` | print the last answer and exit |
+| `--show-prompt` | print the last prompt and exit |
+| `--template`, `-t` `<value>` | use a named prompt template |
+| `--timeout` `<value>` | give up after this long |
+| `--var` `<value>` | set one prompt template variable as NAME=VALUE; repeat as needed |
+
+### `ask prompt`
+
+Manage prompt templates
+
+### `ask prompt list`
+
+List prompt templates
+
+### `ask prompt save`
+
+Save the last prompt as a template
+
+| Option | Description |
+| --- | --- |
+| `--description` `<value>` | describe when to use this prompt |
+| `--schema` `<value>` | associate a default schema template |
+| `--variable` `<value>` | declare NAME or NAME=DEFAULT; repeat as needed |
+
+### `ask prompt show`
+
+Print a prompt template
+
+### `ask provider`
+
+Inspect external inference providers
+
+### `ask provider list`
+
+List discovered providers
+
+| Option | Description |
+| --- | --- |
+| `--json` | print JSON |
+
+### `ask provider validate`
+
+Validate provider manifests and dependencies
+
+| Option | Description |
+| --- | --- |
+| `--json` | print JSON |
+
+### `ask schema`
+
+Manage schema templates
+
+### `ask schema list`
+
+List schema templates
+
+### `ask schema save`
+
+Save a field spec or JSON Schema file as a template
+
+| Option | Description |
+| --- | --- |
+| `--description` `<value>` | describe the structured result |
+
+### `ask schema show`
+
+Print a schema template
+
+<!-- END GENERATED:commands -->
+
+## Provider and install reference
+<!-- BEGIN GENERATED:providers -->
+
+| Provider | Description | Actions | Install |
+| --- | --- | --- | --- |
+| `antigravity` | Antigravity CLI | `inference.generate`, `inference.models`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-antigravity'` |
+| `claude` | Claude Code | `inference.generate`, `inference.models`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-claude'` |
+| `codex` | Codex CLI | `inference.generate`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-codex'` |
+| `copilot` | GitHub Copilot CLI | `inference.generate`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-copilot'` |
+| `crush` | Crush CLI | `inference.generate`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-crush'` |
+| `cursor` | Cursor Agent CLI | `inference.generate`, `inference.models`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-cursor'` |
+| `fx` | fx coding agent CLI | `inference.generate`, `inference.models`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-fx'` |
+| `goose` | Goose CLI | `inference.generate`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-goose'` |
+| `hermes` | Hermes Agent CLI | `inference.generate`, `provider.validate` | `nix profile install 'github:roshbhatia/ask?dir=extras#provider-hermes'` |
+
+<!-- END GENERATED:providers -->

@@ -2,22 +2,15 @@ version: 2
 
 builds:
   - id: ask
-    main: .
+    main: ./cmd/ask
     binary: ask
     env:
       - CGO_ENABLED=0
     goos: [darwin, linux]
     goarch: [amd64, arm64]
-  - id: ask-provider-text
-    main: ./cmd/ask-provider-text
-    binary: ask-provider-text
-    env:
-      - CGO_ENABLED=0
-    goos: [darwin, linux]
-    goarch: [amd64, arm64]
-
 archives:
-  - ids: [ask, ask-provider-text]
+  - id: ask
+    ids: [ask]
     formats: [tar.gz]
     name_template: >-
       {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
@@ -27,3 +20,28 @@ checksum:
 
 changelog:
   use: github-native
+
+homebrew_casks:
+  - name: ask
+    ids: [ask]
+    binaries: [ask]
+    homepage: https://github.com/roshbhatia/ask
+    description: Ask agent harnesses through provider-defined adapters
+    generate_completions_from_executable:
+      executable: ask
+      args: [completion]
+      base_name: ask
+      shell_parameter_format: cobra
+      shells: [bash, zsh, fish]
+    hooks:
+      post:
+        install: |
+          nushell_completion = "#{HOMEBREW_PREFIX}/share/nushell/vendor/autoload/ask.nu"
+          FileUtils.mkdir_p(File.dirname(nushell_completion))
+          File.write(nushell_completion, Utils.safe_popen_read("#{staged_path}/ask", "completion", "nu"))
+        uninstall: |
+          FileUtils.rm_f("#{HOMEBREW_PREFIX}/share/nushell/vendor/autoload/ask.nu")
+    repository:
+      owner: roshbhatia
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"

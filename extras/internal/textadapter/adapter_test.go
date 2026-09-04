@@ -1,4 +1,4 @@
-package main
+package textadapter
 
 import (
 	"bytes"
@@ -11,16 +11,20 @@ import (
 )
 
 func TestCommandProcess(t *testing.T) {
-	if os.Getenv("ASK_PROVIDER_TEXT_HELPER") == "" {
+	if os.Getenv("ASK_TEXT_ADAPTER_HELPER") == "" {
 		return
 	}
 	joined := strings.Join(os.Args, " ")
-	wantPrompt := "--prompt Review this.\n\nInput:\ndiff"
-	if os.Getenv("ASK_PROVIDER_TEXT_EMPTY") != "" {
-		wantPrompt = "--prompt Review this."
-	}
+	wantPrompt := "--prompt Review this."
 	if !strings.Contains(joined, "--model sample-model") || !strings.Contains(joined, wantPrompt) {
 		os.Exit(2)
+	}
+	if os.Getenv("ASK_TEXT_ADAPTER_EMPTY") == "" {
+		for _, want := range []string{"Return one JSON object only", `{"type":"object"}`, "Input:\ndiff"} {
+			if !strings.Contains(joined, want) {
+				os.Exit(2)
+			}
+		}
 	}
 	input, _ := os.ReadFile("/dev/stdin")
 	if len(input) != 0 {
@@ -30,8 +34,23 @@ func TestCommandProcess(t *testing.T) {
 	os.Exit(0)
 }
 
+func TestWithSchemaContractNamesTheExactShape(t *testing.T) {
+	prompt, err := withSchemaContract("Answer this.", map[string]any{
+		"type":     "object",
+		"required": []string{"answer"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Answer this.", "Return one JSON object only.", `"required":["answer"]`} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("schema prompt lacks %q: %s", want, prompt)
+		}
+	}
+}
+
 func TestRunMapsDeclarativeCommand(t *testing.T) {
-	t.Setenv("ASK_PROVIDER_TEXT_HELPER", "1")
+	t.Setenv("ASK_TEXT_ADAPTER_HELPER", "1")
 	request := core.Envelope{
 		Version: core.Protocol,
 		Action:  core.ActionGenerate,
@@ -57,7 +76,7 @@ func TestRunMapsDeclarativeCommand(t *testing.T) {
 		"--",
 	}
 	var output bytes.Buffer
-	if err := run(arguments, bytes.NewReader(encoded), &output); err != nil {
+	if err := Run(arguments, bytes.NewReader(encoded), &output); err != nil {
 		t.Fatal(err)
 	}
 	decoder := json.NewDecoder(&output)
@@ -87,8 +106,8 @@ func TestModelNamesAcceptsJSONAndText(t *testing.T) {
 }
 
 func TestPromptInputModeAcceptsAnEmptyInput(t *testing.T) {
-	t.Setenv("ASK_PROVIDER_TEXT_HELPER", "1")
-	t.Setenv("ASK_PROVIDER_TEXT_EMPTY", "1")
+	t.Setenv("ASK_TEXT_ADAPTER_HELPER", "1")
+	t.Setenv("ASK_TEXT_ADAPTER_EMPTY", "1")
 	request := core.Envelope{
 		Version: core.Protocol,
 		Action:  core.ActionGenerate,
@@ -112,7 +131,7 @@ func TestPromptInputModeAcceptsAnEmptyInput(t *testing.T) {
 		"--",
 	}
 	var output bytes.Buffer
-	if err := run(arguments, bytes.NewReader(encoded), &output); err != nil {
+	if err := Run(arguments, bytes.NewReader(encoded), &output); err != nil {
 		t.Fatal(err)
 	}
 	decoder := json.NewDecoder(&output)
@@ -138,7 +157,7 @@ func TestValidateChecksMappingWithoutRunningCommand(t *testing.T) {
 	}
 	arguments := []string{"--validate", "--input-mode=prompt", "--", "not-installed"}
 	var output bytes.Buffer
-	if err := run(arguments, bytes.NewReader(request), &output); err != nil {
+	if err := Run(arguments, bytes.NewReader(request), &output); err != nil {
 		t.Fatal(err)
 	}
 	var response core.ValidationResponse

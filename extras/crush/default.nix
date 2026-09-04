@@ -12,6 +12,5 @@ in
 mkProvider {
   name = "crush";
   runtime = crushWithSandboxedTests;
-  command = "crush";
   manifest = ./provider.yaml;
 }

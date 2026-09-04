@@ -1,5 +1,5 @@
-// ask-provider-text wraps a one-shot text command in the provider/v1 stream.
-package main
+// Package textadapter maps a one-shot text command onto the Ask provider protocol.
+package textadapter
 
 import (
 	"bytes"
@@ -34,17 +34,24 @@ var inputPrompt = template.Must(template.New("input prompt").Parse(`{{.Prompt}}
 Input:
 {{.Input}}`))
 
-func main() {
-	if err := run(os.Args[1:], os.Stdin, os.Stdout); err != nil {
+var schemaPrompt = template.Must(template.New("schema prompt").Parse(`{{.Prompt}}
+
+Return one JSON object only. It must match this JSON Schema:
+{{.Schema}}`))
+
+// Main runs a provider-owned text adapter.
+func Main() {
+	if err := Run(os.Args[1:], os.Stdin, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
 }
 
-func run(arguments []string, stdin io.Reader, stdout io.Writer) error {
+// Run maps a declarative provider action onto its configured command.
+func Run(arguments []string, stdin io.Reader, stdout io.Writer) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	flags := flag.NewFlagSet("ask-provider-text", flag.ContinueOnError)
+	flags := flag.NewFlagSet("provider adapter", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	var opts options
 	flags.StringVar(&opts.inputMode, "input-mode", "stdin", "send input through stdin or append it to the prompt")
@@ -59,7 +66,7 @@ func run(arguments []string, stdin io.Reader, stdout io.Writer) error {
 	}
 	commandLine := flags.Args()
 	if len(commandLine) == 0 {
-		return errors.New("ask-provider-text requires a command after --")
+		return errors.New("provider adapter requires a command after --")
 	}
 
 	var envelope core.Envelope
@@ -174,6 +181,13 @@ func runGenerate(ctx context.Context, opts options, commandLine []string, reques
 
 	prompt := request.Prompt
 	input := request.Input
+	if opts.schemaFlag == "" && request.Schema != nil {
+		rendered, err := withSchemaContract(prompt, request.Schema)
+		if err != nil {
+			return err
+		}
+		prompt = rendered
+	}
 	switch opts.inputMode {
 	case "prompt":
 		if len(input) > 0 {
@@ -228,6 +242,21 @@ func runGenerate(ctx context.Context, opts options, commandLine []string, reques
 		}
 	}
 	return encoder.Encode(core.Event{Version: core.Protocol, Kind: core.Done, Result: result})
+}
+
+func withSchemaContract(prompt string, shape map[string]any) (string, error) {
+	encoded, err := json.Marshal(shape)
+	if err != nil {
+		return "", err
+	}
+	var rendered strings.Builder
+	if err := schemaPrompt.Execute(&rendered, struct {
+		Prompt string
+		Schema string
+	}{Prompt: prompt, Schema: string(encoded)}); err != nil {
+		return "", err
+	}
+	return rendered.String(), nil
 }
 
 func schemaArgument(shape map[string]any, asFile bool) (string, func(), error) {

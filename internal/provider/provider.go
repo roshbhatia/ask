@@ -87,12 +87,13 @@ type Info struct {
 	Binary string
 
 	manifest shared.Manifest
+	path     string
 }
 
-func (i Info) New() Provider { return commandProvider{manifest: i.manifest} }
+func (i Info) New() Provider { return commandProvider{manifest: i.manifest, path: i.path} }
 
 func (i Info) Ready() bool {
-	return (shared.Validator{}).Validate(i.manifest, "").OK()
+	return (shared.Validator{}).Validate(i.manifest, filepath.Dir(i.path)).OK()
 }
 
 func (i Info) Models() []string {
@@ -105,6 +106,7 @@ func (i Info) Models() []string {
 	if err != nil {
 		return nil
 	}
+	plan = resolvePlanCommand(plan, i.path)
 	value := ModelResponse{}
 	if err := runJSON(ctx, plan, Envelope{Version: Protocol, Action: ActionModels}, &value, ""); err != nil || value.Version != Protocol {
 		return nil
@@ -172,49 +174,108 @@ func uniquePaths(paths []string) []string {
 	return result
 }
 
-func directories() ([]string, error) {
+type manifestDiagnostic struct {
+	path string
+	err  error
+}
+
+func directories() ([]string, []manifestDiagnostic) {
 	var result []string
+	var diagnostics []manifestDiagnostic
 	for _, root := range providerRoots() {
-		result = append(result, root)
 		entries, err := os.ReadDir(root)
 		if errors.Is(err, os.ErrNotExist) {
 			continue
 		}
 		if err != nil {
-			return nil, fmt.Errorf("read provider directory %s: %w", root, err)
+			diagnostics = append(diagnostics, manifestDiagnostic{path: root, err: err})
+			continue
+		}
+		result = append(result, root)
+		for _, entry := range entries {
+			path := filepath.Join(root, entry.Name())
+			isDirectory := entry.IsDir()
+			if entry.Type()&os.ModeSymlink != 0 {
+				info, statErr := os.Stat(path)
+				if statErr != nil {
+					diagnostics = append(diagnostics, manifestDiagnostic{path: path, err: statErr})
+					continue
+				}
+				isDirectory = info.IsDir()
+			}
+			if isDirectory {
+				result = append(result, path)
+			}
+		}
+	}
+	return result, diagnostics
+}
+
+func loadManifests() ([]shared.LoadedManifest, []manifestDiagnostic, error) {
+	directories, diagnostics := directories()
+	var loaded []shared.LoadedManifest
+	for _, directory := range directories {
+		entries, err := os.ReadDir(directory)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			diagnostics = append(diagnostics, manifestDiagnostic{path: directory, err: err})
+			continue
 		}
 		for _, entry := range entries {
 			if entry.IsDir() {
-				result = append(result, filepath.Join(root, entry.Name()))
+				continue
 			}
+			extension := filepath.Ext(entry.Name())
+			if extension != ".json" && extension != ".yaml" && extension != ".yml" {
+				continue
+			}
+			path := filepath.Join(directory, entry.Name())
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				diagnostics = append(diagnostics, manifestDiagnostic{path: path, err: err})
+				continue
+			}
+			manifest, err := shared.Decode(bytes.NewReader(raw), extension)
+			if err != nil {
+				diagnostics = append(diagnostics, manifestDiagnostic{path: path, err: err})
+				continue
+			}
+			loaded = append(loaded, shared.LoadedManifest{Manifest: manifest, Path: path})
 		}
 	}
-	return result, nil
+	return dedupeLoaded(loaded), diagnostics, nil
+}
+
+func dedupeLoaded(loaded []shared.LoadedManifest) []shared.LoadedManifest {
+	seen := make(map[string]bool, len(loaded))
+	result := make([]shared.LoadedManifest, 0, len(loaded))
+	for _, item := range loaded {
+		if seen[item.Manifest.Name] {
+			continue
+		}
+		seen[item.Manifest.Name] = true
+		result = append(result, item)
+	}
+	return result
 }
 
 func Discover() ([]Info, error) {
-	seen := map[string]bool{}
 	var result []Info
-	directories, err := directories()
+	loaded, _, err := loadManifests()
 	if err != nil {
 		return nil, err
 	}
-	for _, directory := range directories {
-		loaded, err := shared.Discover(directory)
-		if err != nil {
-			return nil, err
+	for _, item := range loaded {
+		manifest := item.Manifest
+		if _, ok := manifest.Actions[ActionGenerate]; !ok {
+			continue
 		}
-		for _, item := range loaded {
-			manifest := item.Manifest
-			if _, ok := manifest.Actions[ActionGenerate]; !ok {
-				continue
-			}
-			if seen[manifest.Name] {
-				continue
-			}
-			seen[manifest.Name] = true
-			result = append(result, Info{Name: manifest.Name, Blurb: manifest.Description, Binary: manifest.Command[0], manifest: manifest})
-		}
+		result = append(result, Info{
+			Name: manifest.Name, Blurb: manifest.Description, Binary: manifest.Command[0],
+			manifest: manifest, path: item.Path,
+		})
 	}
 	slices.SortFunc(result, func(a, b Info) int { return strings.Compare(a.Name, b.Name) })
 	return result, nil
@@ -272,7 +333,10 @@ func Find(name string) (Provider, error) {
 	return nil, fmt.Errorf("unknown provider %q, known: %s", name, strings.Join(known, ", "))
 }
 
-type commandProvider struct{ manifest shared.Manifest }
+type commandProvider struct {
+	manifest shared.Manifest
+	path     string
+}
 
 func (p commandProvider) Name() string { return p.manifest.Name }
 
@@ -281,6 +345,7 @@ func (p commandProvider) Run(ctx context.Context, request Request) (<-chan Event
 	if err != nil {
 		return nil, err
 	}
+	plan = resolvePlanCommand(plan, p.path)
 	cancel := func() {}
 	if plan.Timeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, plan.Timeout)
@@ -434,40 +499,43 @@ func runJSON(ctx context.Context, plan shared.Plan, request any, response any, d
 	return nil
 }
 
+func resolvePlanCommand(plan shared.Plan, manifestPath string) shared.Plan {
+	if len(plan.Argv) == 0 || filepath.IsAbs(plan.Argv[0]) || !strings.ContainsRune(plan.Argv[0], filepath.Separator) {
+		return plan
+	}
+	plan.Argv = slices.Clone(plan.Argv)
+	plan.Argv[0] = filepath.Clean(filepath.Join(filepath.Dir(manifestPath), plan.Argv[0]))
+	return plan
+}
+
 func Loaded() ([]shared.LoadedManifest, error) {
-	var result []shared.LoadedManifest
-	seen := map[string]bool{}
-	directories, err := directories()
+	loaded, _, err := loadManifests()
 	if err != nil {
 		return nil, err
 	}
-	for _, directory := range directories {
-		loaded, err := shared.Discover(directory)
-		if err != nil {
-			return nil, err
-		}
-		for _, item := range loaded {
-			if !seen[item.Manifest.Name] {
-				seen[item.Manifest.Name] = true
-				result = append(result, item)
-			}
-		}
-	}
-	return result, nil
+	return loaded, nil
 }
 
 func Validate(name, workingDirectory string) ([]shared.ValidationReport, error) {
-	loaded, err := Loaded()
+	loaded, diagnostics, err := loadedForValidation(name)
 	if err != nil {
 		return nil, err
 	}
 	var reports []shared.ValidationReport
 	for _, item := range loaded {
 		if name == "" || item.Manifest.Name == name {
-			report := (shared.Validator{}).Validate(item.Manifest, workingDirectory)
-			validateContract(&report, item.Manifest, workingDirectory)
+			report := (shared.Validator{}).Validate(item.Manifest, filepath.Dir(item.Path))
+			validateContract(&report, item.Manifest, item.Path, workingDirectory)
 			reports = append(reports, report)
 		}
+	}
+	for _, diagnostic := range diagnostics {
+		reports = append(reports, shared.ValidationReport{
+			Provider: diagnosticName(diagnostic.path),
+			Checks: []shared.Check{{
+				Kind: "manifest", Target: diagnostic.path, Status: shared.CheckFailed, Message: diagnostic.err.Error(),
+			}},
+		})
 	}
 	if name != "" && len(reports) == 0 {
 		return nil, fmt.Errorf("unknown provider %q", name)
@@ -475,7 +543,39 @@ func Validate(name, workingDirectory string) ([]shared.ValidationReport, error) 
 	return reports, nil
 }
 
-func validateContract(report *shared.ValidationReport, manifest shared.Manifest, workingDirectory string) {
+func diagnosticName(path string) string {
+	parent := filepath.Base(filepath.Dir(path))
+	if parent != "providers" {
+		return parent
+	}
+	return strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+}
+
+func loadedForValidation(name string) ([]shared.LoadedManifest, []manifestDiagnostic, error) {
+	if name == "" {
+		return loadManifests()
+	}
+	if filepath.Base(name) != name || name == "." || name == ".." {
+		return nil, nil, fmt.Errorf("invalid provider name %q", name)
+	}
+	loaded, diagnostics, err := loadManifests()
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, item := range loaded {
+		if item.Manifest.Name == name {
+			return []shared.LoadedManifest{item}, nil, nil
+		}
+	}
+	for _, diagnostic := range diagnostics {
+		if diagnosticName(diagnostic.path) == name {
+			return nil, nil, fmt.Errorf("decode provider manifest %s: %w", diagnostic.path, diagnostic.err)
+		}
+	}
+	return nil, nil, nil
+}
+
+func validateContract(report *shared.ValidationReport, manifest shared.Manifest, manifestPath, workingDirectory string) {
 	for _, action := range []string{ActionGenerate, ActionValidate} {
 		status := shared.CheckOK
 		message := "declared"
@@ -513,11 +613,12 @@ func validateContract(report *shared.ValidationReport, manifest shared.Manifest,
 	if !report.OK() {
 		return
 	}
-	plan, err := manifest.Render(ActionValidate, map[string]any{})
+	plan, err := manifest.Render(ActionValidate, probe)
 	if err != nil {
 		report.Checks = append(report.Checks, contractCheck(shared.CheckFailed, err.Error()))
 		return
 	}
+	plan = resolvePlanCommand(plan, manifestPath)
 	timeout := plan.Timeout
 	if timeout <= 0 || timeout > 5*time.Second {
 		timeout = 5 * time.Second
@@ -525,7 +626,7 @@ func validateContract(report *shared.ValidationReport, manifest shared.Manifest,
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	response := ValidationResponse{}
-	err = runJSON(ctx, plan, Envelope{Version: Protocol, Action: ActionValidate}, &response, workingDirectory)
+	err = runJSON(ctx, plan, Envelope{Version: Protocol, Action: ActionValidate, Request: probe}, &response, workingDirectory)
 	if err != nil {
 		report.Checks = append(report.Checks, contractCheck(shared.CheckFailed, err.Error()))
 		return

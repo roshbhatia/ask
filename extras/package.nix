@@ -7,25 +7,15 @@
 {
   name,
   runtime,
-  command,
   manifest,
-  adapterSubpackage ? null,
+  adapterSubpackage ? "./extras/${name}",
 }:
 let
-  textAdapter = buildGo {
-    name = "ask-provider-text";
-    subPackage = "./cmd/ask-provider-text";
-    builtName = "ask-provider-text";
+  adapter = buildGo {
+    name = "ask-provider-${name}-raw";
+    subPackage = adapterSubpackage;
+    builtName = name;
   };
-  adapter =
-    if adapterSubpackage == null then
-      textAdapter
-    else
-      buildGo {
-        name = "ask-provider-${name}-raw";
-        subPackage = adapterSubpackage;
-        builtName = name;
-      };
   executable = "ask-provider-${name}";
   entry = pkgs.writeShellApplication {
     name = executable;
@@ -33,15 +23,9 @@ let
       runtime
       adapter
     ];
-    text =
-      if adapterSubpackage == null then
-        ''
-          exec ask-provider-text "$@"
-        ''
-      else
-        ''
-          exec ask-provider-${name}-raw "$@"
-        '';
+    text = ''
+      exec ask-provider-${name}-raw "$@"
+    '';
   };
   adapterPackage = pkgs.runCommand "ask-provider-${name}-adapter-${version}" { } ''
     mkdir -p "$out/bin" "$out/share/ask/providers/${name}"

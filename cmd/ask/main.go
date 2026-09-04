@@ -14,14 +14,15 @@ import (
 	"time"
 
 	"github.com/roshbhatia/go-utils/completion"
+	providerlib "github.com/roshbhatia/go-utils/provider"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"golang.org/x/term"
 
 	"github.com/roshbhatia/ask/internal/config"
-	"github.com/roshbhatia/ask/internal/pane"
 	"github.com/roshbhatia/ask/internal/provider"
 	"github.com/roshbhatia/ask/internal/schema"
+	"github.com/roshbhatia/ask/internal/snapshot"
 	"github.com/roshbhatia/ask/internal/store"
 	"github.com/roshbhatia/ask/internal/templates"
 	"github.com/roshbhatia/ask/internal/ui"
@@ -32,7 +33,7 @@ const about = `Agents in your shell!
 Anything on stdin goes to the agent along with the prompt, so a pipe is optional.
 
   %[1]s what does git rebase --onto do
-  cat main.go | %[1]s summarise this file
+  git diff --cached | %[1]s review this change for correctness
   cat log.txt | %[1]s -p local-model --schema 'level:error|warn|info, message:string' -- classify this
   %[1]s --show-input | pbcopy
 
@@ -67,8 +68,8 @@ when nothing is typed, and the list of types after a name and a colon.
   %[1]s --schema <tab>
   %[1]s --schema 'files:<tab>
 
---last sends what the previous command printed, so a pipe is not needed to hand
-an agent an error you have just read.
+--last sends what the previous command printed when a terminal integration has
+set ASK_CAPTURE_ID and piped rolling snapshots through the hidden --capture flag.
 
   cargo build; %[1]s --last why did this fail
   %[1]s --show-last | head
@@ -231,6 +232,7 @@ func command(opts *options) *cobra.Command {
 	})
 	cmd.CompletionOptions.DisableDefaultCmd = true
 	cmd.AddCommand(completionCommand(cmd))
+	cmd.AddCommand(completionValuesCommand())
 	cmd.AddCommand(generateCommand())
 	cmd.AddCommand(promptCommand())
 	cmd.AddCommand(providerCommand())
@@ -272,12 +274,116 @@ func generateCommand() *cobra.Command {
 					return err
 				}
 			}
-			return nil
+			return generateReadme(root, check)
 		},
 	}
 	cmd.Flags().StringVar(&root, "root", ".", "repository root")
 	cmd.Flags().BoolVar(&check, "check", false, "fail when a generated file differs")
 	return cmd
+}
+
+func generateReadme(root string, check bool) error {
+	path := filepath.Join(root, "README.md")
+	document, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	updated, err := completion.ReplaceSection(string(document), "install", installReference())
+	if err != nil {
+		return err
+	}
+	commands := completion.Markdown(completionSpec(command(new(options))))
+	updated, err = completion.ReplaceSection(updated, "commands", commands)
+	if err != nil {
+		return err
+	}
+	providers, err := providerReference(root)
+	if err != nil {
+		return err
+	}
+	updated, err = completion.ReplaceSection(updated, "providers", providers)
+	if err != nil {
+		return err
+	}
+	return generated(path, []byte(updated), check)
+}
+
+func installReference() string {
+	return `Choose one Ask package. These alternatives must not be installed together:
+
+~~~bash
+# Core only. Install providers separately.
+nix profile install github:roshbhatia/ask#ask
+
+# Core plus the eight providers packaged by the root flake.
+nix profile install github:roshbhatia/ask#full
+
+# Core plus every maintained provider, including standalone extras.
+nix profile install 'github:roshbhatia/ask?dir=extras#full'
+~~~
+
+Homebrew installs the provider-neutral core:
+
+~~~bash
+brew install roshbhatia/tap/ask
+~~~
+`
+}
+
+func providerReference(root string) (string, error) {
+	entries, err := os.ReadDir(filepath.Join(root, "extras"))
+	if err != nil {
+		return "", err
+	}
+	var manifests []providerlib.Manifest
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		path := filepath.Join(root, "extras", entry.Name(), "provider.yaml")
+		raw, err := os.ReadFile(path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		manifest, err := providerlib.Decode(bytes.NewReader(raw), ".yaml")
+		if err != nil {
+			return "", fmt.Errorf("decode %s: %w", path, err)
+		}
+		manifests = append(manifests, manifest)
+	}
+	sort.Slice(manifests, func(i, j int) bool { return manifests[i].Name < manifests[j].Name })
+	var out strings.Builder
+	out.WriteString("| Provider | Description | Actions | Install |\n")
+	out.WriteString("| --- | --- | --- | --- |\n")
+	for _, manifest := range manifests {
+		actions := make([]string, 0, len(manifest.Actions))
+		for name := range manifest.Actions {
+			actions = append(actions, name)
+		}
+		sort.Strings(actions)
+		install := "github:roshbhatia/ask#provider-" + manifest.Name
+		if _, err := os.Stat(filepath.Join(root, "extras", manifest.Name, "default.nix")); errors.Is(err, os.ErrNotExist) {
+			install = "github:roshbhatia/ask?dir=extras#provider-" + manifest.Name
+		} else if err != nil {
+			return "", err
+		}
+		fmt.Fprintf(
+			&out,
+			"| `%s` | %s | `%s` | `nix profile install '%s'` |\n",
+			manifest.Name,
+			markdownCell(manifest.Description),
+			strings.Join(actions, "`, `"),
+			install,
+		)
+	}
+	return out.String(), nil
+}
+
+func markdownCell(value string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(value, "|", "\\|"), "\n", " ")
 }
 
 func generated(path string, content []byte, check bool) error {
@@ -347,14 +453,25 @@ func providerCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if validateJSON {
-				return json.NewEncoder(os.Stdout).Encode(reports)
-			}
 			failed := false
+			for _, report := range reports {
+				if !report.OK() {
+					failed = true
+				}
+			}
+			if validateJSON {
+				if err := json.NewEncoder(os.Stdout).Encode(reports); err != nil {
+					return err
+				}
+				if failed {
+					return errors.New("provider validation failed")
+				}
+				return nil
+			}
 			for _, report := range reports {
 				status := "ok"
 				if !report.OK() {
-					status, failed = "failed", true
+					status = "failed"
 				}
 				fmt.Printf("%s  %s\n", report.Provider, status)
 				for _, check := range report.Checks {
@@ -513,80 +630,195 @@ func completionCommand(root *cobra.Command) *cobra.Command {
 		Args:      cobra.ExactArgs(1),
 		ValidArgs: []string{"bash", "zsh", "fish", "nu"},
 		RunE: func(_ *cobra.Command, args []string) error {
-			switch args[0] {
-			case "bash":
-				return root.GenBashCompletion(os.Stdout)
-			case "zsh":
-				return root.GenZshCompletion(os.Stdout)
-			case "fish":
-				return root.GenFishCompletion(os.Stdout, true)
-			case "nu":
-				out, err := completion.Generate("nu", completionSpec(root))
-				if err != nil {
-					return err
-				}
-				fmt.Fprintln(os.Stdout, out)
-				return nil
-			default:
-				return fmt.Errorf("completion requires bash, zsh, fish, or nu")
+			out, err := completion.Generate(args[0], completionSpec(root))
+			if err != nil {
+				return err
 			}
+			fmt.Fprintln(os.Stdout, out)
+			return nil
+		},
+	}
+}
+
+func completionValuesCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:    "__values providers|models|prompt-templates|schema-templates",
+		Args:   cobra.RangeArgs(1, 2),
+		Hidden: true,
+		RunE: func(_ *cobra.Command, args []string) error {
+			var values []string
+			var err error
+			switch args[0] {
+			case "providers":
+				values, err = provider.Names()
+			case "models":
+				context := ""
+				if len(args) == 2 {
+					context = args[1]
+				}
+				values = modelNames(completionOptions(context))
+			case "prompt-templates":
+				values = templateNames("prompt")
+			case "schema-templates":
+				values = templateNames("schema")
+			default:
+				return fmt.Errorf("unknown completion value set %q", args[0])
+			}
+			if err != nil {
+				return err
+			}
+			for _, value := range values {
+				fmt.Fprintln(os.Stdout, value)
+			}
+			return nil
 		},
 	}
 }
 
 func completionSpec(cmd *cobra.Command) completion.Command {
-	spec := completion.Command{Name: cmd.Name(), Description: cmd.Short}
-	addCompletionFlags(&spec, cmd)
-	addCompletionCommands(&spec, "", cmd)
-	return spec
+	return commandCompletionSpec(cmd, cmd.Name(), nil)
 }
 
-func addCompletionFlags(spec *completion.Command, cmd *cobra.Command) {
-	cmd.NonInheritedFlags().VisitAll(func(flag *pflag.Flag) {
-		if flag.Hidden {
-			return
-		}
-		spec.Flags = append(spec.Flags, completion.Flag{
-			Name:        flag.Name,
-			Short:       flag.Shorthand,
-			Description: flag.Usage,
-			Value:       flag.NoOptDefVal == "",
-		})
-	})
-}
-
-func addCompletionCommands(spec *completion.Command, parent string, cmd *cobra.Command) {
+func commandCompletionSpec(cmd *cobra.Command, executable string, path []string) completion.Command {
+	spec := completion.Command{Name: cmd.Name(), Synopsis: cmd.Short}
+	addCompletionFlags(&spec, cmd, executable, strings.Join(path, " "))
+	if kind := argumentCompletionKind(strings.Join(path, " ")); kind != "" {
+		spec.CompletionCommand = completionValuesInvocation(executable, kind)
+	}
 	for _, child := range cmd.Commands() {
 		if child.Name() == "completion" || !child.IsAvailableCommand() {
 			continue
 		}
-		name := strings.TrimSpace(parent + " " + child.Name())
-		subcommand := completion.Command{Name: name, Description: child.Short}
-		addCompletionFlags(&subcommand, child)
-		spec.Subcommands = append(spec.Subcommands, subcommand)
-		addCompletionCommands(spec, name, child)
+		childPath := append(append([]string{}, path...), child.Name())
+		spec.Subcommands = append(spec.Subcommands, commandCompletionSpec(child, executable, childPath))
+	}
+	return spec
+}
+
+func addCompletionFlags(spec *completion.Command, cmd *cobra.Command, executable, commandPath string) {
+	cmd.NonInheritedFlags().VisitAll(func(flag *pflag.Flag) {
+		if flag.Hidden {
+			return
+		}
+		metadata := completion.Flag{
+			Name:        flag.Name,
+			Short:       flag.Shorthand,
+			Description: flag.Usage,
+			Value:       flag.NoOptDefVal == "",
+		}
+		if kind := flagCompletionKind(commandPath, flag.Name); kind != "" {
+			metadata.CompletionCommand = completionValuesInvocation(executable, kind)
+		}
+		switch flag.Name {
+		case "get-config":
+			metadata.Values = config.Keys()
+		case "set-config":
+			metadata.Values = pairs("")
+		case "timeout":
+			metadata.Values = []string{"30s", "2m", "10m", "30m"}
+		}
+		spec.Flags = append(spec.Flags, metadata)
+	})
+}
+
+func completionValuesInvocation(executable, kind string) []string {
+	command := []string{executable, "__values", kind}
+	if kind == "models" {
+		command = append(command, completion.ContextPlaceholder)
+	}
+	return command
+}
+
+func completionOptions(context string) options {
+	words := strings.Fields(context)
+	named := ""
+	for index := 0; index < len(words); index++ {
+		word := strings.Trim(words[index], `"'`)
+		switch {
+		case word == "--":
+			return options{provider: named}
+		case word == "--provider" || word == "-p":
+			if index+1 < len(words) {
+				named = strings.Trim(words[index+1], `"'`)
+				index++
+			}
+		case strings.HasPrefix(word, "--provider="):
+			named = strings.Trim(strings.TrimPrefix(word, "--provider="), `"'`)
+		case strings.HasPrefix(word, "-p="):
+			named = strings.Trim(strings.TrimPrefix(word, "-p="), `"'`)
+		}
+	}
+	return options{provider: named}
+}
+
+func flagCompletionKind(commandPath, flagName string) string {
+	if commandPath == "prompt save" && flagName == "schema" {
+		return "schema-templates"
+	}
+	if commandPath != "" {
+		return ""
+	}
+	switch flagName {
+	case "provider":
+		return "providers"
+	case "model":
+		return "models"
+	case "template":
+		return "prompt-templates"
+	case "schema-template":
+		return "schema-templates"
+	default:
+		return ""
+	}
+}
+
+func argumentCompletionKind(commandPath string) string {
+	switch commandPath {
+	case "provider validate":
+		return "providers"
+	case "prompt show":
+		return "prompt-templates"
+	case "schema show":
+		return "schema-templates"
+	default:
+		return ""
 	}
 }
 
 // models offers what the agent about to run accepts, read from that CLI's help.
 func models(opts options) []string {
+	one, found := modelProvider(opts)
+	if !found {
+		return nil
+	}
+	offer := one.Models()
+	for at, name := range offer {
+		offer[at] = name + "\t" + one.Blurb
+	}
+	return offer
+}
+
+func modelNames(opts options) []string {
+	one, found := modelProvider(opts)
+	if !found {
+		return nil
+	}
+	return one.Models()
+}
+
+func modelProvider(opts options) (provider.Info, bool) {
 	named, _, err := source()
 	if err != nil {
-		return nil
+		return provider.Info{}, false
 	}
 	if opts.provider != "" {
 		named = opts.provider
 	}
 	one, found, err := provider.Lookup(named)
 	if err != nil || !found {
-		return nil
+		return provider.Info{}, false
 	}
-
-	offer := one.Models()
-	for at, name := range offer {
-		offer[at] = name + "\t" + one.Blurb
-	}
-	return offer
+	return one, true
 }
 
 // agents offers every discovered provider.
@@ -708,7 +940,11 @@ func printSaved(which string) error {
 	case "output":
 		read = store.Output
 	case "last":
-		read = pane.Last
+		id, err := snapshot.ID()
+		if err != nil {
+			return err
+		}
+		read = func() ([]byte, error) { return snapshot.Last(id) }
 	}
 	saved, err := read()
 	switch {
@@ -908,7 +1144,18 @@ func (a asked) Error() string { return "the agent needs to know: " + a.question 
 
 func run(opts options) error {
 	if opts.capture {
-		return pane.Capture()
+		if !piped() {
+			return errors.New("--capture reads a terminal snapshot from standard input")
+		}
+		id, err := snapshot.ID()
+		if err != nil {
+			return err
+		}
+		text, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
+		return snapshot.Capture(id, text)
 	}
 	if handled, err := settings(opts); handled {
 		return err
@@ -960,7 +1207,11 @@ func run(opts options) error {
 	var input []byte
 	switch {
 	case opts.last:
-		if input, err = pane.Last(); err != nil {
+		id, idErr := snapshot.ID()
+		if idErr != nil {
+			return idErr
+		}
+		if input, err = snapshot.Last(id); err != nil {
 			return err
 		}
 	case opts.replay && !piped():

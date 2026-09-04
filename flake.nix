@@ -56,7 +56,7 @@
             config.allowUnfree = true;
           };
           version = "0.4.0";
-          vendorHash = "sha256-8gN29eM8LPF3UkNxpx86sa7trSdBt0slgZ1Oh3Ygd7g=";
+          vendorHash = "sha256-I4ZU2l6w7skhemzcDWr+thEkRYjr4vzctM52Cil/v0Q=";
           buildGo =
             {
               name,
@@ -88,7 +88,7 @@
           ask =
             (buildGo {
               name = "ask";
-              subPackage = ".";
+              subPackage = "./cmd/ask";
               builtName = "ask";
               check = true;
             }).overrideAttrs
@@ -104,11 +104,6 @@
                   "$out/bin/ask" completion nu > "$out/share/nushell/vendor/autoload/ask.nu"
                 '';
               });
-          textAdapter = buildGo {
-            name = "ask-provider-text";
-            subPackage = "./cmd/ask-provider-text";
-            builtName = "ask-provider-text";
-          };
           mkProvider = import ./extras/package.nix {
             inherit
               buildGo
@@ -125,7 +120,7 @@
           );
           extras = pkgs.symlinkJoin {
             name = "ask-extras-${version}";
-            paths = map (provider: provider.adapter) (lib.attrValues providers);
+            paths = lib.attrValues providers;
             passthru.providers = providers;
           };
           full = pkgs.symlinkJoin {
@@ -141,7 +136,6 @@
         in
         {
           inherit ask extras full;
-          provider-text = textAdapter;
           default = ask;
         }
         // providerOutputs
@@ -241,11 +235,25 @@
           provider-aggregate-boundary =
             pkgs.runCommand "ask-provider-aggregate-boundary" { nativeBuildInputs = [ pkgs.findutils ]; }
               ''
-                test "$(find ${packages.extras}/bin -type l -o -type f | wc -l | tr -d ' ')" -eq ${toString (builtins.length names)}
-                if find ${packages.extras}/bin -mindepth 1 -maxdepth 1 -type l -exec basename {} \; \
-                  | grep -Ev '^ask-provider-'; then
-                  exit 1
-                fi
+                ${lib.concatMapStringsSep "\n" (
+                  name: ''test -x "${packages.extras}/bin/ask-provider-${name}"''
+                ) names}
+                touch "$out"
+              '';
+          media-freshness =
+            pkgs.runCommand "ask-media-freshness"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.findutils
+                ];
+              }
+              ''
+                cp -R ${./.} source
+                chmod -R u+w source
+                cd source
+                bash ./hack/screenshots.sh --check
                 touch "$out"
               '';
         }
@@ -265,6 +273,8 @@
               pkgs.go-tools
               pkgs.goreleaser
               pkgs.cue
+              pkgs.coreutils
+              pkgs.findutils
               pkgs.ripgrep
               pkgs.charm-freeze
               pkgs.vhs
