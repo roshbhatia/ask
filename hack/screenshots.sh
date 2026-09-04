@@ -5,19 +5,12 @@ repo_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_dir"
 
 media_fingerprint() {
-  find . \
-    -path './.git' -prune -o \
-    -path './.direnv' -prune -o \
-    -path './dist' -prune -o \
-    -type f \
-    ! -path './docs/ask.png' \
-    ! -path './docs/ask.gif' \
-    ! -path './docs/ask.media.sha256' \
-    -print0 |
-    LC_ALL=C sort -z |
-    xargs -0 sha256sum |
-    sha256sum |
-    cut -d ' ' -f 1
+  {
+    printf '%s\n' flake.lock flake.nix go.mod go.sum hack/ask.tape hack/screenshots.sh
+    find cmd internal extras hack/fixtures -type f ! -name '*_test.go' -print | LC_ALL=C sort
+  } | while IFS= read -r source_file; do
+    sha256sum "$source_file"
+  done | sha256sum | cut -d ' ' -f 1
 }
 
 fingerprint=$(media_fingerprint)
