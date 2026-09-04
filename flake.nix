@@ -55,7 +55,7 @@
             inherit system;
             config.allowUnfree = true;
           };
-          version = "0.4.0";
+          version = "0.5.0";
           vendorHash = "sha256-I4ZU2l6w7skhemzcDWr+thEkRYjr4vzctM52Cil/v0Q=";
           buildGo =
             {
@@ -102,6 +102,8 @@
                     --zsh <("$out/bin/ask" completion zsh)
                   mkdir -p "$out/share/nushell/vendor/autoload"
                   "$out/bin/ask" completion nu > "$out/share/nushell/vendor/autoload/ask.nu"
+                  mkdir -p "$out/share/ask/schema"
+                  cp schema/*.json "$out/share/ask/schema/"
                 '';
               });
           mkProvider = import ./extras/package.nix {

@@ -74,11 +74,11 @@ set ASK_CAPTURE_ID and piped rolling snapshots through the hidden --capture flag
   cargo build; %[1]s --last why did this fail
   %[1]s --show-last | head
 
-Prompt templates live in the config directory and use {{variable}} placeholders.
+Prompt templates live in the config directory and use Go template actions such as {{.variable}}.
 A prompt template can name its default schema template.
 
   %[1]s schema save review-result 'summary:string, risks:[]string'
-  %[1]s prompt save review --schema review-result --variable repo --variable focus=correctness
+  %[1]s prompt save review --schema review-result --variable repo:string --variable strict:bool=true
   %[1]s --template review --var repo=ask`
 
 type options struct {
@@ -258,9 +258,19 @@ func generateCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			promptSchema, err := templates.PromptSchema()
+			if err != nil {
+				return err
+			}
+			templateSchema, err := templates.SchemaTemplateSchema()
+			if err != nil {
+				return err
+			}
 			generatedFiles := map[string][]byte{
-				filepath.Join(root, "schema", "config.schema.json"):   configSchema,
-				filepath.Join(root, "schema", "provider.schema.json"): providerSchema,
+				filepath.Join(root, "schema", "config.schema.json"):          configSchema,
+				filepath.Join(root, "schema", "prompt-template.schema.json"): promptSchema,
+				filepath.Join(root, "schema", "provider.schema.json"):        providerSchema,
+				filepath.Join(root, "schema", "schema-template.schema.json"): templateSchema,
 			}
 			wireSchemas, err := provider.WireSchemas()
 			if err != nil {
@@ -548,7 +558,7 @@ func promptCommand() *cobra.Command {
 	}
 	save.Flags().StringVar(&description, "description", "", "describe when to use this prompt")
 	save.Flags().StringVar(&schemaName, "schema", "", "associate a default schema template")
-	save.Flags().StringArrayVar(&variables, "variable", nil, "declare NAME or NAME=DEFAULT; repeat as needed")
+	save.Flags().StringArrayVar(&variables, "variable", nil, "declare NAME[:TYPE][=DEFAULT], where TYPE is string, bool, int, number, or json; repeat as needed")
 	_ = save.RegisterFlagCompletionFunc("schema", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 		return templateNames("schema"), cobra.ShellCompDirectiveNoFileComp
 	})

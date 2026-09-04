@@ -41,7 +41,12 @@ func waitForPID(t *testing.T, path string) int {
 	for time.Now().Before(deadline) {
 		raw, err := os.ReadFile(path)
 		if err == nil {
-			pid, parseErr := strconv.Atoi(strings.TrimSpace(string(raw)))
+			value := strings.TrimSpace(string(raw))
+			if value == "" {
+				time.Sleep(10 * time.Millisecond)
+				continue
+			}
+			pid, parseErr := strconv.Atoi(value)
 			if parseErr != nil {
 				t.Fatal(parseErr)
 			}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/roshbhatia/go-utils/completion"
 
+	"github.com/roshbhatia/ask/internal/store"
 	"github.com/roshbhatia/ask/internal/templates"
 )
 
@@ -74,7 +75,7 @@ func TestPromptFromTemplateRendersAndAssociatesSchema(t *testing.T) {
 	}
 	if _, err := templates.SavePrompt(templates.Prompt{
 		Name:   "review",
-		Prompt: "Review {{repo}} for {{focus}}.",
+		Prompt: "Review {{.repo}} for {{.focus}}.",
 		Schema: "review-result",
 		Variables: []templates.Variable{
 			{Name: "repo", Required: true},
@@ -104,7 +105,7 @@ func TestPromptFromTemplateNamesMissingVariables(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	if _, err := templates.SavePrompt(templates.Prompt{
 		Name:      "review",
-		Prompt:    "Review {{repo}}.",
+		Prompt:    "Review {{.repo}}.",
 		Variables: []templates.Variable{{Name: "repo", Required: true}},
 	}); err != nil {
 		t.Fatal(err)
@@ -113,6 +114,66 @@ func TestPromptFromTemplateNamesMissingVariables(t *testing.T) {
 	_, _, err := promptFromTemplate(options{template: "review", quiet: true})
 	if err == nil || !strings.Contains(err.Error(), "needs --var for: repo") {
 		t.Fatalf("got %v", err)
+	}
+}
+
+func TestPromptFromTemplateRejectsInvalidTypedValue(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	if _, err := templates.SavePrompt(templates.Prompt{
+		Name:      "review",
+		Prompt:    "{{if .strict}}Review it.{{end}}",
+		Variables: []templates.Variable{{Name: "strict", Type: "bool", Required: true}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, err := promptFromTemplate(options{template: "review", vars: []string{"strict=perhaps"}, quiet: true})
+	if err == nil || !strings.Contains(err.Error(), `variable "strict": want bool`) {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestPromptSaveUsesLastPromptAndAssociatedSchema(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	if _, err := templates.SaveSchema(templates.Schema{
+		Name:   "review-result",
+		Schema: map[string]any{"type": "object"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveRun(nil, "Review {{.repo}}. {{if .strict}}Require migration tests.{{end}}"); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := promptCommand()
+	cmd.SetArgs([]string{
+		"save", "code-review",
+		"--schema", "review-result",
+		"--variable", "repo:string",
+		"--variable", "strict:bool=true",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	prompt, err := templates.LoadPrompt("code-review")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prompt.Schema != "review-result" || len(prompt.Variables) != 2 {
+		t.Fatalf("saved prompt = %#v", prompt)
+	}
+	rendered, schemaName, err := promptFromTemplate(options{
+		template: "code-review",
+		vars:     []string{"repo=payments"},
+		quiet:    true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if schemaName != "review-result" || rendered != "Review payments. Require migration tests." {
+		t.Fatalf("rendered = %q, schema = %q", rendered, schemaName)
 	}
 }
 

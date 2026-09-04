@@ -52,14 +52,15 @@ variables you want to expose and save that last prompt:
 ask schema save review-result \
   'summary:string, risks:[]string, tests:[]string, verdict:pass|revise'
 
-ask -p local-model 'Review {{repo}} with emphasis on {{focus}}.'
+ask -p local-model \
+  'Review {{.repo}}. {{if .strict}}Reject untested migration risks.{{end}}'
 ask prompt save code-review \
   --schema review-result \
-  --variable repo \
-  --variable focus=correctness
+  --variable repo:string \
+  --variable strict:bool=true
 ```
 
-Run the template with only the required value. `focus` uses its saved default.
+Run the template with only the required value. `strict` uses its saved default.
 The associated `review-result` schema is applied automatically:
 
 ```bash
@@ -68,9 +69,14 @@ git diff --staged | ask -p local-model \
   --var repo=payments-service
 ```
 
-Repeat `--var NAME=VALUE` for each override. Ask prompts for missing required
-values when a terminal is available. Non-interactive runs fail with the missing
-variable names.
+Repeat `--var NAME=VALUE` for each override. A declaration accepts
+`NAME[:TYPE][=DEFAULT]`. Supported types are `string`, `bool`, `int`, `number`,
+and `json`. Ask validates values before it starts a provider. Prompt templates
+use Go `text/template`, so conditions such as `{{if .strict}}` use typed values.
+The `json` template function renders a JSON variable without Go map syntax.
+
+Ask prompts for missing required values when a terminal is available.
+Non-interactive runs fail with the missing variable names.
 
 Use `--schema-template NAME` to apply a schema without a prompt template. An
 explicit `--schema` or `--schema-template` overrides a prompt template's default.
@@ -91,7 +97,11 @@ Templates are ordinary YAML files:
 ```
 
 This keeps templates reviewable and portable. Set `XDG_CONFIG_HOME` to move the
-directory.
+directory. Saved files include a YAML language-server directive. Their generated
+schemas live at `schema/prompt-template.schema.json` and
+`schema/schema-template.schema.json`. Ask still reads `ask.prompt/v1` files and
+renders their `{{variable}}` placeholders with the original literal semantics.
+New saves use `ask.prompt/v2` and Go template actions.
 
 Generate shell completions with `ask completion bash`, `zsh`, `fish`, or `nu`.
 
@@ -273,7 +283,7 @@ Save the last prompt as a template
 | --- | --- |
 | `--description` `<value>` | describe when to use this prompt |
 | `--schema` `<value>` | associate a default schema template |
-| `--variable` `<value>` | declare NAME or NAME=DEFAULT; repeat as needed |
+| `--variable` `<value>` | declare NAME[:TYPE][=DEFAULT], where TYPE is string, bool, int, number, or json; repeat as needed |
 
 ### `ask prompt show`
 
