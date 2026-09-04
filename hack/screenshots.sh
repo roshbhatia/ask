@@ -34,7 +34,6 @@ trap 'rm -rf "$build_dir"' EXIT
 full=$(nix build "$repo_dir#full" --no-link --print-out-paths)
 
 install -m 0755 "$repo_dir/hack/fixtures/provider" "$build_dir/ask-provider-demo"
-install -m 0755 "$repo_dir/hack/fixtures/demo" "$build_dir/ask-demo"
 mkdir -p "$build_dir/providers/demo"
 cp "$repo_dir/hack/fixtures/provider.yaml" "$build_dir/providers/demo/provider.yaml"
 mkdir -p "$build_dir/home" "$build_dir/config" "$build_dir/data" "$build_dir/state" "$build_dir/cache" "$build_dir/runtime"
@@ -49,7 +48,7 @@ export ASK_PROVIDER_PATH="$build_dir/providers"
 unset ASK_CONFIG ASK_PROVIDER ASK_PROVIDER_DEFAULT ASK_PROVIDERS_DIRECTORY
 
 PATH="$build_dir:$full/bin:$PATH" freeze \
-  --execute "ask-demo" \
+  --execute "ask -q -p demo \"Review the token parser change and summarize the evidence.\"" \
   --output "$build_dir/ask.png" \
   --width 1100 \
   --padding 24 \

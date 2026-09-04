@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-prompt="Review the token parser change and summarize the evidence."
-printf '%s\n\n' "> ask -p demo \"$prompt\""
-exec ask -q -p demo "$prompt"
