@@ -27,29 +27,12 @@
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          adapter = pkgs.buildGoModule {
-            pname = "ask-provider-hermes";
-            version = "0.4.0";
-            src = ./.;
-            vendorHash = null;
-            meta.mainProgram = "ask-provider-hermes";
-          };
-          hermes = runtime.packages.${system}.minimal;
-          entry = pkgs.writeShellApplication {
-            name = "ask-provider-hermes";
-            runtimeInputs = [ hermes ];
-            text = ''
-              exec ${pkgs.lib.getExe adapter} "$@"
-            '';
-          };
         in
         {
-          default = pkgs.runCommand "ask-provider-hermes-0.4.0" { } ''
-            mkdir -p "$out/bin" "$out/share/ask/providers/hermes"
-            ln -s ${pkgs.lib.getExe entry} "$out/bin/ask-provider-hermes"
-            ln -s ${pkgs.lib.getExe hermes} "$out/bin/hermes"
-            install -m 0444 ${./provider.yaml} "$out/share/ask/providers/hermes/provider.yaml"
-          '';
+          default = import ./package.nix {
+            inherit pkgs;
+            runtime = runtime.packages.${system}.minimal;
+          };
         }
       );
       checks = eachSystem (

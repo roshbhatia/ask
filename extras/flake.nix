@@ -4,8 +4,7 @@
   inputs = {
     ask.url = "path:..";
     nixpkgs.follows = "ask/nixpkgs";
-    standalone-provider.url = "path:./hermes";
-    standalone-provider.inputs.nixpkgs.follows = "nixpkgs";
+    runtime.url = "github:NousResearch/hermes-agent";
   };
 
   outputs =
@@ -13,7 +12,7 @@
       self,
       ask,
       nixpkgs,
-      standalone-provider,
+      runtime,
       ...
     }:
     let
@@ -43,7 +42,10 @@
           pkgs = nixpkgs.legacyPackages.${system};
           rootProviders = lib.genAttrs rootProviderNames (name: ask.packages.${system}."provider-${name}");
           providers = rootProviders // {
-            "${standaloneName}" = standalone-provider.packages.${system}.default;
+            "${standaloneName}" = import ./hermes/package.nix {
+              inherit pkgs;
+              runtime = runtime.packages.${system}.minimal;
+            };
           };
           extras = pkgs.symlinkJoin {
             name = "ask-all-extras";

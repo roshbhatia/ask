@@ -17,7 +17,6 @@
     "flake-parts": {
       "inputs": {
         "nixpkgs-lib": [
-          "standalone-provider",
           "runtime",
           "nixpkgs"
         ]
@@ -39,7 +38,6 @@
     "home-manager": {
       "inputs": {
         "nixpkgs": [
-          "standalone-provider",
           "runtime",
           "nixpkgs"
         ]
@@ -93,7 +91,6 @@
     "npm-lockfile-fix": {
       "inputs": {
         "nixpkgs": [
-          "standalone-provider",
           "runtime",
           "nixpkgs"
         ]
@@ -115,17 +112,14 @@
     "pyproject-build-systems": {
       "inputs": {
         "nixpkgs": [
-          "standalone-provider",
           "runtime",
           "nixpkgs"
         ],
         "pyproject-nix": [
-          "standalone-provider",
           "runtime",
           "pyproject-nix"
         ],
         "uv2nix": [
-          "standalone-provider",
           "runtime",
           "uv2nix"
         ]
@@ -147,7 +141,6 @@
     "pyproject-nix": {
       "inputs": {
         "nixpkgs": [
-          "standalone-provider",
           "runtime",
           "nixpkgs"
         ]
@@ -173,7 +166,7 @@
           "ask",
           "nixpkgs"
         ],
-        "standalone-provider": "standalone-provider"
+        "runtime": "runtime"
       }
     },
     "runtime": {
@@ -187,11 +180,11 @@
         "uv2nix": "uv2nix"
       },
       "locked": {
-        "lastModified": 1788438011,
-        "narHash": "sha256-3qXLnmqe4wU8eMDPcS0JKMVYJ+rfAE57gJIwE/arW08=",
+        "lastModified": 1788622634,
+        "narHash": "sha256-TiH13DhbkjVTEgpWdV4cQcSIwv8x8XfB8VCuPTmdKR8=",
         "owner": "NousResearch",
         "repo": "hermes-agent",
-        "rev": "63279301bcbdc185c1b07b98a9312eb0c862f26d",
+        "rev": "9dd6634c5635321cf38840cc30e9b51226689128",
         "type": "github"
       },
       "original": {
@@ -200,32 +193,13 @@
         "type": "github"
       }
     },
-    "standalone-provider": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ],
-        "runtime": "runtime"
-      },
-      "locked": {
-        "path": "./hermes",
-        "type": "path"
-      },
-      "original": {
-        "path": "./hermes",
-        "type": "path"
-      },
-      "parent": []
-    },
     "uv2nix": {
       "inputs": {
         "nixpkgs": [
-          "standalone-provider",
           "runtime",
           "nixpkgs"
         ],
         "pyproject-nix": [
-          "standalone-provider",
           "runtime",
           "pyproject-nix"
         ]
