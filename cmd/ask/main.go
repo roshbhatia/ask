@@ -652,7 +652,7 @@ func completionCommand(root *cobra.Command) *cobra.Command {
 
 func completionValuesCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:    "__values providers|models|prompt-templates|schema-templates",
+		Use:    "__values providers|models|prompt-templates|schema-templates|schemas",
 		Args:   cobra.RangeArgs(1, 2),
 		Hidden: true,
 		RunE: func(_ *cobra.Command, args []string) error {
@@ -671,6 +671,19 @@ func completionValuesCommand() *cobra.Command {
 				values = templateNames("prompt")
 			case "schema-templates":
 				values = templateNames("schema")
+			case "schemas":
+				context := ""
+				if len(args) == 2 {
+					context = args[1]
+				}
+				typed := schemaCompletionValue(context)
+				var paths bool
+				values, paths = schema.Complete(typed)
+				if paths {
+					values = schema.CompletePaths(typed)
+				} else {
+					values = completionCandidates(values)
+				}
 			default:
 				return fmt.Errorf("unknown completion value set %q", args[0])
 			}
@@ -731,12 +744,35 @@ func addCompletionFlags(spec *completion.Command, cmd *cobra.Command, executable
 	})
 }
 
+func completionCandidates(values []string) []string {
+	for index, value := range values {
+		candidate, _, _ := strings.Cut(value, "\t")
+		values[index] = candidate
+	}
+	return values
+}
+
 func completionValuesInvocation(executable, kind string) []string {
 	command := []string{executable, "__values", kind}
-	if kind == "models" {
+	if kind == "models" || kind == "schemas" {
 		command = append(command, completion.ContextPlaceholder)
 	}
 	return command
+}
+
+func schemaCompletionValue(context string) string {
+	trimmed := strings.TrimRight(context, " \t")
+	for _, marker := range []string{"--schema=", "-s=", "--schema ", "-s "} {
+		if index := strings.LastIndex(trimmed, marker); index >= 0 {
+			value := strings.TrimSpace(trimmed[index+len(marker):])
+			return strings.Trim(value, `"'`)
+		}
+	}
+	words := strings.Fields(trimmed)
+	if len(words) == 1 {
+		return strings.Trim(words[0], `"'`)
+	}
+	return ""
 }
 
 func completionOptions(context string) options {
@@ -773,6 +809,8 @@ func flagCompletionKind(commandPath, flagName string) string {
 		return "providers"
 	case "model":
 		return "models"
+	case "schema":
+		return "schemas"
 	case "template":
 		return "prompt-templates"
 	case "schema-template":

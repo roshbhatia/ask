@@ -46,7 +46,7 @@ const (
 )
 
 type Event struct {
-	Version string  `json:"version,omitempty" jsonschema:"enum=provider/v1"`
+	Version string  `json:"version" jsonschema:"enum=provider/v1"`
 	Kind    Kind    `json:"type" jsonschema:"enum=started,enum=text,enum=tool,enum=notice,enum=result"`
 	Text    string  `json:"text,omitempty"`
 	Tool    string  `json:"tool,omitempty"`

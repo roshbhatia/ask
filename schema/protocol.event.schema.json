@@ -50,6 +50,7 @@
   "additionalProperties": false,
   "type": "object",
   "required": [
+    "version",
     "type"
   ],
   "title": "Ask provider event"

@@ -1,6 +1,11 @@
 package schema
 
-import "strings"
+import (
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+)
 
 // offered lists one spelling per type; typeOf parses more (str, text, integer).
 var offered = []struct {
@@ -55,6 +60,39 @@ func Complete(typed string) (offer []string, paths bool) {
 		}
 	}
 	return offer, false
+}
+
+// CompletePaths offers filesystem entries while preserving the @ schema-file prefix.
+func CompletePaths(typed string) []string {
+	path := strings.TrimPrefix(typed, "@")
+	displayDirectory, prefix := filepath.Split(path)
+	readDirectory := displayDirectory
+	if strings.HasPrefix(readDirectory, "~"+string(filepath.Separator)) {
+		if home, err := os.UserHomeDir(); err == nil {
+			readDirectory = filepath.Join(home, strings.TrimPrefix(readDirectory, "~"+string(filepath.Separator)))
+		}
+	}
+	if readDirectory == "" {
+		readDirectory = "."
+	}
+	entries, err := os.ReadDir(readDirectory)
+	if err != nil {
+		return nil
+	}
+	values := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		name := entry.Name()
+		if !strings.HasPrefix(name, prefix) || strings.HasPrefix(name, ".") && !strings.HasPrefix(prefix, ".") {
+			continue
+		}
+		candidate := "@" + displayDirectory + name
+		if entry.IsDir() {
+			candidate += string(filepath.Separator)
+		}
+		values = append(values, candidate)
+	}
+	sort.Strings(values)
+	return values
 }
 
 // lastField cuts the spec at the last comma, so earlier fields carry through.

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -10,12 +11,41 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/roshbhatia/go-utils/completion"
 
+	"github.com/roshbhatia/ask/internal/provider"
+	"github.com/roshbhatia/ask/internal/schema"
 	"github.com/roshbhatia/ask/internal/store"
 	"github.com/roshbhatia/ask/internal/templates"
 )
+
+type fixedProvider struct {
+	result provider.Result
+	runs   int
+}
+
+func (p *fixedProvider) Name() string { return "fixed" }
+
+func (p *fixedProvider) Run(context.Context, provider.Request) (<-chan provider.Event, error) {
+	p.runs++
+	events := make(chan provider.Event, 1)
+	events <- provider.Event{Version: provider.Protocol, Kind: provider.Done, Result: &p.result}
+	close(events)
+	return events, nil
+}
+
+func TestJSONRunRejectsPlainTextResult(t *testing.T) {
+	agent := &fixedProvider{result: provider.Result{Text: "plain text"}}
+	_, err := converse(provider.Request{}, schema.Any(), options{quiet: true, timeout: time.Second}, agent)
+	if err == nil || !strings.Contains(err.Error(), "outside the shape") {
+		t.Fatalf("error = %v, want structured-answer failure", err)
+	}
+	if agent.runs != rounds {
+		t.Fatalf("provider ran %d times, want %d repair rounds", agent.runs, rounds)
+	}
+}
 
 func TestProviderValidateJSONExitsNonzeroForFailedCheck(t *testing.T) {
 	configHome := t.TempDir()
@@ -186,6 +216,7 @@ func TestCompletionSpecKeepsNestedDynamicCompleters(t *testing.T) {
 	}{
 		{flag: "provider", kind: "providers"},
 		{flag: "model", kind: "models"},
+		{flag: "schema", kind: "schemas"},
 		{flag: "template", kind: "prompt-templates"},
 		{flag: "schema-template", kind: "schema-templates"},
 		{path: []string{"provider", "validate"}, kind: "providers"},
@@ -200,7 +231,7 @@ func TestCompletionSpecKeepsNestedDynamicCompleters(t *testing.T) {
 			invocation = findCompletionFlag(t, command, want.flag).CompletionCommand
 		}
 		expected := []string{spec.Name, "__values", want.kind}
-		if want.kind == "models" {
+		if want.kind == "models" || want.kind == "schemas" {
 			expected = append(expected, completion.ContextPlaceholder)
 		}
 		if !slices.Equal(invocation, expected) {
@@ -213,11 +244,43 @@ func TestCompletionSpecKeepsNestedDynamicCompleters(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, want := range []string{"providers", "models", "prompt-templates", "schema-templates"} {
+		for _, want := range []string{"providers", "models", "schemas", "prompt-templates", "schema-templates"} {
 			if !strings.Contains(generated, want) {
 				t.Fatalf("%s completion lacks %q", shell, want)
 			}
 		}
+	}
+}
+
+func TestSchemaCompletionValueReadsFlagContext(t *testing.T) {
+	tests := map[string]string{
+		"ask --schema ":                      "",
+		"ask --schema files:":                "files:",
+		"ask -s @schema/re":                  "@schema/re",
+		"ask --schema=summary:string":        "summary:string",
+		"ask -s=summary:string":              "summary:string",
+		"ask --schema 'name:string, count:'": "name:string, count:",
+		"summary:string":                     "summary:string",
+	}
+	for context, want := range tests {
+		if got := schemaCompletionValue(context); got != want {
+			t.Errorf("schemaCompletionValue(%q) = %q, want %q", context, got, want)
+		}
+	}
+}
+
+func TestSchemaCompletionValuesAreShellSafe(t *testing.T) {
+	command := exec.Command(os.Args[0], "-test.run=TestAskHelperProcess", "--", "__values", "schemas", "ask --schema ")
+	command.Env = append(os.Environ(), "ASK_TEST_HELPER=1")
+	output, err := command.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(output, []byte{'\t'}) {
+		t.Fatalf("schema completion contains a tab-separated description: %q", output)
+	}
+	if !strings.Contains(string(output), "ok:bool, reason:string\n") {
+		t.Fatalf("schema completion lacks the expected candidate: %q", output)
 	}
 }
 

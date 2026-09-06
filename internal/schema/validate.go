@@ -29,7 +29,7 @@ const most = 6
 
 // Check answers with every reason the reply is outside the shape, or nil.
 func Check(shape map[string]any, reply map[string]any) error {
-	if Free(shape) {
+	if shape == nil || len(shape) == 0 {
 		return nil
 	}
 
