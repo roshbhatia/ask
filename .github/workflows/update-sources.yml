@@ -1,0 +1,121 @@
+name: Update sources
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {}
+
+permissions: {}
+
+concurrency:
+  group: update-sources
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Update locks and open a pull request
+    runs-on: ubuntu-latest
+    permissions:
+      # Push the fixed automation branch.
+      contents: write
+      # Open or update its pull request.
+      pull-requests: write
+    outputs:
+      head-sha: ${{ steps.cpr.outputs.pull-request-head-sha }}
+      pull-request-number: ${{ steps.cpr.outputs.pull-request-number }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update flake inputs
+        env:
+          NIX_CONFIG: "access-tokens = github.com=${{ github.token }}"
+        run: |
+          nix flake update
+          while IFS= read -r flake_file; do
+            nix flake update --flake "./${flake_file%/flake.nix}"
+          done < <(find extras -type f -name flake.nix -print | LC_ALL=C sort)
+
+      - name: Create Pull Request
+        id: cpr
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          # A PR opened by GITHUB_TOKEN does not trigger pull_request checks.
+          token: ${{ github.token }}
+          branch: automation/update-sources
+          delete-branch: true
+          title: "chore: update flake inputs"
+          commit-message: "chore: update flake inputs"
+          body: |
+            Automated update:
+            - Updated the root and provider-extra flake locks
+
+  check:
+    needs: update
+    if: needs.update.outputs.pull-request-number != ''
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            system: x86_64-linux
+          - runner: ubuntu-24.04-arm
+            system: aarch64-linux
+          - runner: macos-15
+            system: aarch64-darwin
+    name: Check updated sources on ${{ matrix.system }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ needs.update.outputs.head-sha }}
+
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+
+      - name: Verify runner architecture
+        env:
+          EXPECTED_SYSTEM: ${{ matrix.system }}
+        run: test "$(nix eval --impure --raw --expr builtins.currentSystem)" = "$EXPECTED_SYSTEM"
+
+      - name: Check every shipped flake
+        run: |
+          nix flake check --print-build-logs
+          while IFS= read -r flake_file; do
+            nix flake check "./${flake_file%/flake.nix}" --print-build-logs
+          done < <(find extras -type f -name flake.nix -print | LC_ALL=C sort)
+
+  merge:
+    name: Merge the tested source update
+    needs: [update, check]
+    if: needs.update.outputs.pull-request-number != ''
+    runs-on: ubuntu-latest
+    permissions:
+      # Merge and delete the tested automation branch.
+      contents: write
+      # Read and merge the exact pull request head.
+      pull-requests: write
+    steps:
+      - name: Merge the tested head
+        env:
+          EXPECTED_HEAD: ${{ needs.update.outputs.head-sha }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.update.outputs.pull-request-number }}
+        run: |
+          actual_head=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid)
+          test "$actual_head" = "$EXPECTED_HEAD"
+          gh pr merge "$PR_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --squash \
+            --delete-branch \
+            --match-head-commit "$EXPECTED_HEAD"

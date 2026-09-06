@@ -4,14 +4,17 @@ on:
   push:
     tags: ["v*"]
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
   verify-tag:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout the tagged source
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Match the tag to flake.nix
         run: |
           package_version=$(sed -nE 's/^[[:space:]]*version = "([^"]+)";$/\1/p' flake.nix | head -1)
@@ -21,15 +24,18 @@ jobs:
   release:
     needs: verify-tag
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # publish the GitHub release
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v7
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
-          cache: true
-      - uses: goreleaser/goreleaser-action@v7
+          cache: false
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7
         with:
           version: v2.18.0
           args: release --clean
