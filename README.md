@@ -43,6 +43,15 @@ git diff --staged | ask -p local-model \
   'Review this patch for correctness and migration risk.'
 ```
 
+Add `-L` for bulk work a cheap model handles. It runs the light model the
+provider's manifest declares and fails plainly on a provider that declares none.
+`-m` names a model outright; the two do not combine.
+
+```bash
+git log -20 --format=%s | ask -p local-model -L \
+  'Summarize these commits in one line each.'
+```
+
 ## Templates
 
 Save a reusable output schema. Then ask a question whose prompt contains the
@@ -80,6 +89,17 @@ Non-interactive runs fail with the missing variable names.
 
 Use `--schema-template NAME` to apply a schema without a prompt template. An
 explicit `--schema` or `--schema-template` overrides a prompt template's default.
+
+A template can also pin the provider and model it was written for:
+
+```bash
+ask prompt save triage --provider local-model --model light
+```
+
+This writes `provider:` and `model:` into the file. `model:` takes a literal id
+or the role words `light` and `default`, which Ask resolves against the
+provider's manifest when the template runs. `-p` on the command line beats the
+template's provider, and `-m` or `-L` beat its model.
 
 ```bash
 ask prompt list
@@ -173,7 +193,16 @@ requires:
   commands: [model-cli]
 defaults:
   timeout: 2m
+  model: model-cli-large
+  light: model-cli-small
 ```
+
+`defaults.model` names the model a plain request runs and `defaults.light` the
+cheap one `-L` selects. Both are ids the provider's own command accepts. Ask
+resolves the role words `light` and `default` to them before it renders `argv`
+or writes the request, so an adapter only ever sees a literal id. A provider
+that declares no `light` makes `-L` an error rather than quietly running
+something heavier.
 
 Each provider owns its executable and manifest. Simple command providers reuse
 the neutral Go adapter library under `extras/internal/textadapter`; streaming
