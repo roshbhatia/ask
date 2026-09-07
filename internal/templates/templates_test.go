@@ -253,7 +253,7 @@ func TestGeneratedTemplateSchemasDescribeTypes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"ask.prompt/v2", "variables", "bool", "number", "json"} {
+	for _, want := range []string{"ask.prompt/v2", "variables", "bool", "number", "json", `"provider"`, `"model"`, "light"} {
 		if !strings.Contains(string(promptSchema), want) {
 			t.Fatalf("prompt schema does not contain %q", want)
 		}
@@ -262,5 +262,61 @@ func TestGeneratedTemplateSchemasDescribeTypes(t *testing.T) {
 		if !strings.Contains(string(schemaSchema), want) {
 			t.Fatalf("schema template schema does not contain %q", want)
 		}
+	}
+}
+
+func TestSavePromptRoundTripsProviderAndModelPins(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	if _, err := SavePrompt(Prompt{Name: "triage", Prompt: "Triage it.", Provider: "local-model", Model: "light"}); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(PromptDir(), "triage.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"provider: local-model\n", "model: light\n"} {
+		if !strings.Contains(string(raw), want) {
+			t.Fatalf("saved prompt lacks %q:\n%s", want, raw)
+		}
+	}
+	prompt, err := LoadPrompt("triage")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prompt.Provider != "local-model" || prompt.Model != "light" {
+		t.Fatalf("loaded pins = %q, %q", prompt.Provider, prompt.Model)
+	}
+
+	if _, err := SavePrompt(Prompt{Name: "plain", Prompt: "Plain."}); err != nil {
+		t.Fatal(err)
+	}
+	raw, err = os.ReadFile(filepath.Join(PromptDir(), "plain.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "provider:") || strings.Contains(string(raw), "model:") {
+		t.Fatalf("unpinned prompt wrote pin keys:\n%s", raw)
+	}
+}
+
+func TestSavePromptAcceptsLiteralModelIds(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	for _, model := range []string{"default", "light", "large-2026-01", "vendor/model:tag"} {
+		if _, err := SavePrompt(Prompt{Name: "pinned", Prompt: "Go.", Model: model}); err != nil {
+			t.Fatalf("model %q rejected: %v", model, err)
+		}
+	}
+}
+
+func TestSavePromptRejectsBadPins(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	if _, err := SavePrompt(Prompt{Name: "pinned", Prompt: "Go.", Model: "  "}); err == nil || !strings.Contains(err.Error(), "model pin cannot be blank") {
+		t.Fatalf("blank model: %v", err)
+	}
+	if _, err := SavePrompt(Prompt{Name: "pinned", Prompt: "Go.", Provider: "not a provider"}); err == nil || !strings.Contains(err.Error(), "invalid provider name") {
+		t.Fatalf("bad provider: %v", err)
+	}
+	if _, err := SavePrompt(Prompt{Name: "pinned", Prompt: "Go.", Provider: "-dash"}); err == nil {
+		t.Fatal("provider starting with a dash was accepted")
 	}
 }

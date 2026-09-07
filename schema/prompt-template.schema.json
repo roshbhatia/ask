@@ -55,6 +55,16 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
     },
+    "provider": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "description": "Provider to run unless -p names another"
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Model id or the role word light or default; -m and -L override it"
+    },
     "variables": {
       "items": {
         "$ref": "#/$defs/Variable"
