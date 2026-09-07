@@ -92,6 +92,12 @@ type Info struct {
 
 func (i Info) New() Provider { return commandProvider{manifest: i.manifest, path: i.path} }
 
+// ModelRoles reports the model ids the manifest names for the "default" and
+// "light" roles. Either is empty when the provider declares none.
+func (i Info) ModelRoles() (defaultModel, light string) {
+	return i.manifest.Defaults.Model, i.manifest.Defaults.Light
+}
+
 func (i Info) Ready() bool {
 	return (shared.Validator{}).Validate(i.manifest, filepath.Dir(i.path)).OK()
 }
@@ -341,6 +347,13 @@ type commandProvider struct {
 func (p commandProvider) Name() string { return p.manifest.Name }
 
 func (p commandProvider) Run(ctx context.Context, request Request) (<-chan Event, error) {
+	// A caller may ask by role ("light", "default") rather than by id; the
+	// adapter only ever sees the resolved id, both in argv and on stdin.
+	model, err := p.manifest.ResolveModel(request.Model)
+	if err != nil {
+		return nil, err
+	}
+	request.Model = model
 	plan, err := p.manifest.Render(ActionGenerate, request)
 	if err != nil {
 		return nil, err

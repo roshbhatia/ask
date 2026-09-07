@@ -24,5 +24,7 @@ package schema
 	defaults?: {
 		timeout?: string & =~"^[0-9]+(ns|us|µs|ms|s|m|h)$"
 		priority?: int
+		model?: string & !=""
+		light?: string & !=""
 	}
 }

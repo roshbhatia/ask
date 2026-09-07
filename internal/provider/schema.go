@@ -52,7 +52,31 @@ func Schema() ([]byte, error) {
 	if err := constrainRequirements(definitions); err != nil {
 		return nil, err
 	}
+	if err := constrainDefaults(definitions); err != nil {
+		return nil, err
+	}
 	return encodeSchema(schema)
+}
+
+// constrainDefaults keeps a declared model role from being the empty string,
+// which ResolveModel would otherwise read as "none declared".
+func constrainDefaults(definitions map[string]any) error {
+	defaults, err := schemaObject(definitions, "Defaults")
+	if err != nil {
+		return err
+	}
+	properties, err := schemaObject(defaults, "properties")
+	if err != nil {
+		return err
+	}
+	for _, name := range []string{"model", "light"} {
+		field, err := schemaObject(properties, name)
+		if err != nil {
+			return err
+		}
+		field["minLength"] = 1
+	}
+	return nil
 }
 
 func constrainActions(definitions map[string]any) error {
