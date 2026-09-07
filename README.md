@@ -251,6 +251,7 @@ Agents in your shell!
 | `--get-config` `<value>` | print one setting and exit |
 | `--json`, `-j` | answer in JSON, shape unspecified |
 | `--last`, `-l` | send what the previous command printed, instead of stdin |
+| `--light`, `-L` | run the provider's light model, the cheap one it declares for bulk work |
 | `--list-config` | print every setting and exit |
 | `--model`, `-m` `<value>` | which model to run; press tab for the ones this agent names |
 | `--provider`, `-p` `<value>` | which installed provider to run |
@@ -282,6 +283,8 @@ Save the last prompt as a template
 | Option | Description |
 | --- | --- |
 | `--description` `<value>` | describe when to use this prompt |
+| `--model` `<value>` | pin the model: an id the provider accepts, or light or default; -m and -L on the run override it |
+| `--provider` `<value>` | pin the provider to run; -p on the run overrides it |
 | `--schema` `<value>` | associate a default schema template |
 | `--variable` `<value>` | declare NAME[:TYPE][=DEFAULT], where TYPE is string, bool, int, number, or json; repeat as needed |
 

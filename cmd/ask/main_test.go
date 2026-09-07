@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/roshbhatia/go-utils/completion"
+	providerlib "github.com/roshbhatia/go-utils/provider"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/roshbhatia/ask/internal/provider"
 	"github.com/roshbhatia/ask/internal/schema"
@@ -115,7 +117,7 @@ func TestPromptFromTemplateRendersAndAssociatesSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	prompt, schemaName, err := promptFromTemplate(options{
+	prompt, pinned, err := promptFromTemplate(options{
 		template: "review",
 		vars:     []string{"repo=ask"},
 		quiet:    true,
@@ -126,8 +128,8 @@ func TestPromptFromTemplateRendersAndAssociatesSchema(t *testing.T) {
 	if prompt != "Review ask for correctness." {
 		t.Fatalf("got prompt %q", prompt)
 	}
-	if schemaName != "review-result" {
-		t.Fatalf("got schema %q", schemaName)
+	if pinned.Schema != "review-result" {
+		t.Fatalf("got schema %q", pinned.Schema)
 	}
 }
 
@@ -180,6 +182,8 @@ func TestPromptSaveUsesLastPromptAndAssociatedSchema(t *testing.T) {
 	cmd.SetArgs([]string{
 		"save", "code-review",
 		"--schema", "review-result",
+		"--provider", "local-model",
+		"--model", "light",
 		"--variable", "repo:string",
 		"--variable", "strict:bool=true",
 	})
@@ -194,7 +198,10 @@ func TestPromptSaveUsesLastPromptAndAssociatedSchema(t *testing.T) {
 	if prompt.Schema != "review-result" || len(prompt.Variables) != 2 {
 		t.Fatalf("saved prompt = %#v", prompt)
 	}
-	rendered, schemaName, err := promptFromTemplate(options{
+	if prompt.Provider != "local-model" || prompt.Model != "light" {
+		t.Fatalf("saved pins = %q, %q", prompt.Provider, prompt.Model)
+	}
+	rendered, pinned, err := promptFromTemplate(options{
 		template: "code-review",
 		vars:     []string{"repo=payments"},
 		quiet:    true,
@@ -202,8 +209,35 @@ func TestPromptSaveUsesLastPromptAndAssociatedSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if schemaName != "review-result" || rendered != "Review payments. Require migration tests." {
-		t.Fatalf("rendered = %q, schema = %q", rendered, schemaName)
+	if pinned.Schema != "review-result" || rendered != "Review payments. Require migration tests." {
+		t.Fatalf("rendered = %q, schema = %q", rendered, pinned.Schema)
+	}
+	if pinned.Provider != "local-model" || pinned.Model != "light" {
+		t.Fatalf("loaded pins = %q, %q", pinned.Provider, pinned.Model)
+	}
+}
+
+func TestWithPinsLetsFlagsWin(t *testing.T) {
+	pinned := templates.Prompt{Schema: "shape", Provider: "pinned", Model: "light"}
+	folded := withPins(options{template: "t"}, pinned)
+	if folded.schemaTemplate != "shape" || folded.provider != "pinned" || folded.model != "light" {
+		t.Fatalf("bare flags took nothing from the template: %#v", folded)
+	}
+	if got := requestedModel(folded); got != "light" {
+		t.Fatalf("requestedModel = %q, want the template's light pin", got)
+	}
+
+	folded = withPins(options{template: "t", provider: "flag", model: "id", spec: "a:string"}, pinned)
+	if folded.provider != "flag" || folded.model != "id" || folded.schemaTemplate != "" {
+		t.Fatalf("flags lost to the template: %#v", folded)
+	}
+
+	folded = withPins(options{template: "t", light: true}, templates.Prompt{Model: "heavy"})
+	if folded.model != "" || requestedModel(folded) != "light" {
+		t.Fatalf("-L lost to the template's model pin: %#v", folded)
+	}
+	if got := requestedModel(options{model: "id"}); got != "id" {
+		t.Fatalf("requestedModel = %q, want the literal id", got)
 	}
 }
 
@@ -223,6 +257,8 @@ func TestCompletionSpecKeepsNestedDynamicCompleters(t *testing.T) {
 		{path: []string{"prompt", "show"}, kind: "prompt-templates"},
 		{path: []string{"schema", "show"}, kind: "schema-templates"},
 		{path: []string{"prompt", "save"}, flag: "schema", kind: "schema-templates"},
+		{path: []string{"prompt", "save"}, flag: "provider", kind: "providers"},
+		{path: []string{"prompt", "save"}, flag: "model", kind: "models"},
 	}
 	for _, want := range wants {
 		command := findCompletionCommand(t, spec, want.path...)
@@ -326,4 +362,198 @@ func findCompletionFlag(t *testing.T, command completion.Command, name string) c
 	}
 	t.Fatalf("completion flag --%s not found", name)
 	return completion.Flag{}
+}
+
+// captureProvider installs a provider whose adapter is this test binary. The
+// adapter writes the envelope it receives to the returned path, so a test can
+// see exactly what ask handed it.
+func captureProvider(t *testing.T, configHome, name string, defaults providerlib.Defaults) string {
+	t.Helper()
+	capture := filepath.Join(t.TempDir(), name+".json")
+	env := map[string]string{"ASK_TEST_ADAPTER": "1", "ASK_TEST_CAPTURE": capture}
+	manifest := providerlib.Manifest{
+		Version:     provider.Protocol,
+		Name:        name,
+		Description: name + " test provider",
+		Command:     []string{os.Args[0], "-test.run=TestAskAdapterProcess", "--"},
+		Actions: map[string]providerlib.Action{
+			provider.ActionGenerate: {Description: "generate", Env: env},
+			provider.ActionValidate: {Description: "validate", Env: env},
+		},
+		Defaults: defaults,
+	}
+	raw, err := yaml.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := filepath.Join(configHome, "ask", "providers", name)
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "provider.yaml"), raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return capture
+}
+
+func TestAskAdapterProcess(t *testing.T) {
+	if os.Getenv("ASK_TEST_ADAPTER") != "1" {
+		return
+	}
+	var envelope provider.Envelope
+	if err := json.NewDecoder(os.Stdin).Decode(&envelope); err != nil {
+		os.Exit(2)
+	}
+	raw, err := json.Marshal(envelope)
+	if err != nil {
+		os.Exit(2)
+	}
+	if err := os.WriteFile(os.Getenv("ASK_TEST_CAPTURE"), raw, 0o600); err != nil {
+		os.Exit(2)
+	}
+	encoder := json.NewEncoder(os.Stdout)
+	if envelope.Action == provider.ActionValidate {
+		_ = encoder.Encode(provider.ValidationResponse{Version: provider.Protocol, Status: "ok"})
+		os.Exit(0)
+	}
+	_ = encoder.Encode(provider.Event{Version: provider.Protocol, Kind: provider.Done, Result: &provider.Result{Text: "answer"}})
+	os.Exit(0)
+}
+
+func capturedRequest(t *testing.T, capture string) provider.Request {
+	t.Helper()
+	raw, err := os.ReadFile(capture)
+	if err != nil {
+		t.Fatalf("the adapter captured nothing: %v", err)
+	}
+	var envelope provider.Envelope
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(capture); err != nil {
+		t.Fatal(err)
+	}
+	return envelope.Request
+}
+
+func TestLightFlagAndTemplatePinsReachTheProviderResolved(t *testing.T) {
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_DIRS", t.TempDir())
+	t.Setenv("ASK_PROVIDER_PATH", "")
+	t.Setenv("ASK_PROVIDER", "")
+	tiered := captureProvider(t, configHome, "tiered", providerlib.Defaults{Model: "large", Light: "small"})
+	heavy := captureProvider(t, configHome, "heavy", providerlib.Defaults{Model: "large"})
+	for _, prompt := range []templates.Prompt{
+		{Name: "triage", Prompt: "Triage {{.what}}.", Provider: "tiered", Model: "light", Variables: []templates.Variable{{Name: "what", Default: "it"}}},
+		{Name: "deep", Prompt: "Study it.", Provider: "tiered", Model: "large-2026"},
+	} {
+		if _, err := templates.SavePrompt(prompt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	base := options{quiet: true, timeout: 30 * time.Second}
+
+	cases := []struct {
+		name    string
+		opts    options
+		capture string
+		model   string
+	}{
+		{name: "-L resolves to the light id", opts: options{prompt: "hi", provider: "tiered", light: true}, capture: tiered, model: "small"},
+		{name: "-m passes a literal through", opts: options{prompt: "hi", provider: "tiered", model: "custom"}, capture: tiered, model: "custom"},
+		{name: "no model means the default", opts: options{prompt: "hi", provider: "tiered"}, capture: tiered, model: "large"},
+		{name: "template pins provider and light", opts: options{template: "triage"}, capture: tiered, model: "small"},
+		{name: "-m beats the template model", opts: options{template: "triage", model: "custom"}, capture: tiered, model: "custom"},
+		{name: "-L beats the template model", opts: options{template: "deep", light: true}, capture: tiered, model: "small"},
+		{name: "template literal id passes through", opts: options{template: "deep"}, capture: tiered, model: "large-2026"},
+		{name: "-p beats the template provider", opts: options{template: "deep", provider: "heavy"}, capture: heavy, model: "large-2026"},
+	}
+	for _, tc := range cases {
+		opts := tc.opts
+		opts.quiet, opts.timeout = base.quiet, base.timeout
+		if err := run(opts); err != nil {
+			t.Fatalf("%s: run: %v", tc.name, err)
+		}
+		request := capturedRequest(t, tc.capture)
+		if request.Model != tc.model {
+			t.Fatalf("%s: provider received model %q, want %q", tc.name, request.Model, tc.model)
+		}
+		if opts.prompt == "" && !strings.HasSuffix(request.Prompt, "it.") {
+			t.Fatalf("%s: provider received prompt %q, want the rendered template", tc.name, request.Prompt)
+		}
+	}
+}
+
+func TestLightFlagFailsOnAProviderWithoutALightModel(t *testing.T) {
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_DIRS", t.TempDir())
+	t.Setenv("ASK_PROVIDER_PATH", "")
+	t.Setenv("ASK_PROVIDER", "")
+	heavy := captureProvider(t, configHome, "heavy", providerlib.Defaults{Model: "large"})
+	if _, err := templates.SavePrompt(templates.Prompt{Name: "triage", Prompt: "Triage it.", Model: "light"}); err != nil {
+		t.Fatal(err)
+	}
+	base := options{quiet: true, timeout: 30 * time.Second}
+
+	for name, opts := range map[string]options{
+		"-L":              {prompt: "hi", provider: "heavy", light: true},
+		"template light":  {template: "triage", provider: "heavy"},
+		"-m light":        {prompt: "hi", provider: "heavy", model: "light"},
+		"default is fine": {prompt: "hi", provider: "heavy", model: "default"},
+	} {
+		opts.quiet, opts.timeout = base.quiet, base.timeout
+		err := run(opts)
+		if name == "default is fine" {
+			if err != nil {
+				t.Fatalf("%s: %v", name, err)
+			}
+			if got := capturedRequest(t, heavy).Model; got != "large" {
+				t.Fatalf("%s: provider received %q, want the default", name, got)
+			}
+			continue
+		}
+		if err == nil || !strings.Contains(err.Error(), "no light model") {
+			t.Fatalf("%s: error = %v, want a missing light model", name, err)
+		}
+		if _, statErr := os.Stat(heavy); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("%s: the provider ran anyway", name)
+		}
+	}
+
+	err := run(options{prompt: "hi", provider: "heavy", model: "large", light: true, quiet: true, timeout: time.Second})
+	if err == nil || !strings.Contains(err.Error(), "either --model or --light") {
+		t.Fatalf("-m with -L: error = %v", err)
+	}
+}
+
+func TestModelCompletionOffersDeclaredRolesFirst(t *testing.T) {
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_DIRS", t.TempDir())
+	t.Setenv("ASK_PROVIDER_PATH", "")
+	t.Setenv("ASK_PROVIDER", "")
+	captureProvider(t, configHome, "tiered", providerlib.Defaults{Model: "large", Light: "small"})
+	captureProvider(t, configHome, "heavy", providerlib.Defaults{Model: "large"})
+	captureProvider(t, configHome, "bare", providerlib.Defaults{})
+
+	if got := modelNames(options{provider: "tiered"}); !slices.Equal(got, []string{"light", "default"}) {
+		t.Fatalf("tiered models = %#v", got)
+	}
+	if got := modelNames(options{provider: "heavy"}); !slices.Equal(got, []string{"default"}) {
+		t.Fatalf("heavy models = %#v", got)
+	}
+	if got := modelNames(options{provider: "bare"}); len(got) != 0 {
+		t.Fatalf("bare models = %#v", got)
+	}
+	described := models(options{provider: "tiered"})
+	if len(described) != 2 || !strings.HasPrefix(described[0], "light\t") {
+		t.Fatalf("described models = %#v", described)
+	}
 }
