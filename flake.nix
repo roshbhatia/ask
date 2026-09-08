@@ -76,6 +76,7 @@
               inherit version vendorHash;
               src = ./.;
               subPackages = [ subPackage ];
+              ldflags = [ "-X main.version=${version}" ];
               nativeCheckInputs = lib.optionals check [
                 pkgs.cue
                 pkgs.ripgrep
@@ -249,8 +250,9 @@
                 ) names}
                 touch "$out"
               '';
-          # The committed schema is the pinned spec export and the manifests
-          # satisfy the spec plus schema/narrow.cue.
+          # The committed schema is the pinned spec export, the manifests satisfy
+          # the spec plus schema/narrow.cue, and the binary reports the spec
+          # version the flake pins.
           provider-spec-contract =
             pkgs.runCommand "ask-provider-spec-contract"
               {
@@ -272,6 +274,7 @@
                     exit 1
                   fi
                 done
+                ${packages.ask}/bin/ask --version | grep --fixed-strings --line-regexp "provider/v1 spec $(cat ${provider-spec}/VERSION)"
                 touch "$out"
               '';
           media-freshness =

@@ -557,3 +557,17 @@ func TestModelCompletionOffersDeclaredRolesFirst(t *testing.T) {
 		t.Fatalf("described models = %#v", described)
 	}
 }
+
+func TestVersionNamesTheProviderSpec(t *testing.T) {
+	cmd := command(new(options))
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetArgs([]string{"--version"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	if len(lines) != 2 || lines[1] != "provider/v1 spec "+providerlib.SpecVersion {
+		t.Fatalf("version output = %q", out.String())
+	}
+}
