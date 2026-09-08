@@ -17,6 +17,9 @@ actions:
       - --sandbox
       - --output-format
       - text
+  inference.models:
+    description: List Antigravity CLI models
+    argv: [--models, --, agy, models]
   provider.validate:
     description: Validate the Antigravity adapter without model work
     argv: [--validate, --model-flag=--model, --prompt-flag=--print, --schema-flag=--json-schema, --, agy]

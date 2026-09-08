@@ -370,7 +370,7 @@ Print a schema template
 
 | Provider | Description | Actions | Install |
 | --- | --- | --- | --- |
-| `antigravity` | Antigravity CLI | `inference.generate`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-antigravity'` |
+| `antigravity` | Antigravity CLI | `inference.generate`, `inference.models`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-antigravity'` |
 | `claude` | Claude Code | `inference.generate`, `inference.models`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-claude'` |
 | `codex` | Codex CLI | `inference.generate`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-codex'` |
 | `copilot` | GitHub Copilot CLI | `inference.generate`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-copilot'` |
