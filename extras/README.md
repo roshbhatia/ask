@@ -19,7 +19,7 @@ provider. Its `#full` output is the complete Ask installation. The root
 `#full` includes the eight root-packaged providers but excludes Hermes.
 
 The flake discovers conforming directories instead of listing product names.
-Every manifest must pass `schema/provider.cue`. Every package must also pass
+Every manifest must pass the provider-spec contract plus `schema/narrow.cue`. Every package must also pass
 its isolated closure check. That check exposes only Ask core and one provider
 package, discovers the manifest through `XDG_DATA_DIRS`, and validates both the
 adapter and its CLI dependency.

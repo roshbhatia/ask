@@ -3,12 +3,19 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    # The canonical provider/v1 contract. schema/narrow.cue adds Ask's rules on
+    # top of it; schema/provider.schema.json must stay byte-identical to its export.
+    provider-spec = {
+      url = "github:roshbhatia/provider-spec/v1.0.0";
+      flake = false;
+    };
   };
 
   outputs =
     {
       self,
       nixpkgs,
+      provider-spec,
       ...
     }:
     let
@@ -77,7 +84,7 @@
               checkPhase = lib.optionalString check ''
                 runHook preCheck
                 go test -race ./...
-                ${pkgs.bash}/bin/bash ./hack/generate.sh --check
+                PROVIDER_SPEC=${provider-spec} ${pkgs.bash}/bin/bash ./hack/generate.sh --check
                 runHook postCheck
               '';
               postInstall = lib.optionalString (builtName != name) ''
@@ -242,6 +249,31 @@
                 ) names}
                 touch "$out"
               '';
+          # The committed schema is the pinned spec export and the manifests
+          # satisfy the spec plus schema/narrow.cue.
+          provider-spec-contract =
+            pkgs.runCommand "ask-provider-spec-contract"
+              {
+                nativeBuildInputs = [
+                  pkgs.cue
+                  pkgs.diffutils
+                ];
+              }
+              ''
+                cd ${./.}
+                export HOME="$TMPDIR"
+                diff -u ${provider-spec}/schema/provider.schema.json schema/provider.schema.json
+                for manifest in extras/*/provider.yaml; do
+                  cue vet -d '#Manifest' ${provider-spec}/provider.cue schema/narrow.cue "$manifest"
+                done
+                for fixture in schema/fixtures/*.yaml; do
+                  if cue vet -d '#Manifest' ${provider-spec}/provider.cue schema/narrow.cue "$fixture" 2>/dev/null; then
+                    echo "reject expected: $fixture" >&2
+                    exit 1
+                  fi
+                done
+                touch "$out"
+              '';
           media-freshness =
             pkgs.runCommand "ask-media-freshness"
               {
@@ -286,6 +318,7 @@
             ];
             shellHook = ''
               export GOTOOLCHAIN=local
+              export PROVIDER_SPEC=${provider-spec}
             '';
           };
         }
