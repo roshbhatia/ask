@@ -2,6 +2,7 @@ package textadapter
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"strings"
@@ -98,10 +99,30 @@ func TestModelNamesAcceptsJSONAndText(t *testing.T) {
 	}{
 		{output: `{"models":[{"id":"large"},{"id":"small"}]}`, want: "large,small"},
 		{output: "large\nsmall\n", want: "large,small"},
+		{output: "large\tLarge (High)\nsmall\tSmall (Low)\n", want: "large,small"},
 	} {
 		if got := strings.Join(modelNames([]byte(test.output)), ","); got != test.want {
 			t.Fatalf("modelNames(%q) = %q, want %q", test.output, got, test.want)
 		}
+	}
+}
+
+func TestRunModelsKeepsAListingFromAFailedCommand(t *testing.T) {
+	var listed bytes.Buffer
+	if err := runModels(context.Background(), []string{"sh", "-c", "printf 'large\nsmall\n'; exit 1"}, &listed); err != nil {
+		t.Fatalf("runModels = %v, want the listing kept", err)
+	}
+	var payload struct {
+		Models []string `json:"models"`
+	}
+	if err := json.Unmarshal(listed.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(payload.Models, ","); got != "large,small" {
+		t.Fatalf("models = %q, want large,small", got)
+	}
+	if err := runModels(context.Background(), []string{"sh", "-c", "exit 1"}, &bytes.Buffer{}); err == nil {
+		t.Fatal("runModels = nil, want the error when the command listed nothing")
 	}
 }
 

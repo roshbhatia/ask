@@ -98,12 +98,34 @@ func Run(arguments []string, stdin io.Reader, stdout io.Writer) error {
 }
 
 func runModels(ctx context.Context, commandLine []string, stdout io.Writer) error {
-	output, err := process.CommandContext(ctx, commandLine[0], commandLine[1:]...).Output()
-	if err != nil {
+	output, err := listing(ctx, commandLine)
+	models := modelNames(output)
+	// A command can name every model and still exit badly, so a listing outranks
+	// the error it came with.
+	if err != nil && len(models) == 0 {
 		return err
 	}
-	models := modelNames(output)
 	return json.NewEncoder(stdout).Encode(map[string]any{"version": core.Protocol, "models": models})
+}
+
+// listing collects stdout through a file rather than a pipe. A CLI that leaks
+// the descriptor to a child it leaves running would otherwise hold the wait
+// open for the whole kill delay, long past its own exit.
+func listing(ctx context.Context, commandLine []string) ([]byte, error) {
+	file, err := os.CreateTemp("", "ask-models-*.txt")
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(file.Name())
+	defer file.Close()
+	command := process.CommandContext(ctx, commandLine[0], commandLine[1:]...)
+	command.Stdout = file
+	runErr := command.Run()
+	output, readErr := os.ReadFile(file.Name())
+	if readErr != nil {
+		return nil, readErr
+	}
+	return output, runErr
 }
 
 func validateOptions(opts options, commandLine []string) error {
@@ -128,6 +150,10 @@ func modelNames(output []byte) []string {
 	}
 	models := make([]string, 0)
 	for _, line := range strings.Split(string(output), "\n") {
+		// A listing may pair each id with a human label; the id is the first column.
+		if id, _, tabbed := strings.Cut(line, "\t"); tabbed {
+			line = id
+		}
 		if line = strings.TrimSpace(line); line != "" {
 			models = append(models, line)
 		}
