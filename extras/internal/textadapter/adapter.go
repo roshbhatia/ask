@@ -151,12 +151,19 @@ func modelNames(output []byte) []string {
 	models := make([]string, 0)
 	for _, line := range strings.Split(string(output), "\n") {
 		// A listing may pair each id with a human label; the id is the first column.
+		// agy separates with a tab, cursor-agent with " - ".
 		if id, _, tabbed := strings.Cut(line, "\t"); tabbed {
 			line = id
+		} else if id, _, dashed := strings.Cut(line, " - "); dashed {
+			line = id
 		}
-		if line = strings.TrimSpace(line); line != "" {
-			models = append(models, line)
+		line = strings.TrimSpace(line)
+		// An id never carries a space. A line that does is a header such as
+		// cursor-agent's "Available models", not a model.
+		if line == "" || strings.ContainsAny(line, " \t") {
+			continue
 		}
+		models = append(models, line)
 	}
 	return models
 }

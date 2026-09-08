@@ -100,6 +100,9 @@ func TestModelNamesAcceptsJSONAndText(t *testing.T) {
 		{output: `{"models":[{"id":"large"},{"id":"small"}]}`, want: "large,small"},
 		{output: "large\nsmall\n", want: "large,small"},
 		{output: "large\tLarge (High)\nsmall\tSmall (Low)\n", want: "large,small"},
+		// cursor-agent: a header line, then "id - Label" rows.
+		{output: "Available models\n\nauto - Auto (default)\ngemini-3.8-flash-low - Gemini 3.8 Flash Low\n", want: "auto,gemini-3.8-flash-low"},
+		{output: "Fetching models...\nlarge\n", want: "large"},
 	} {
 		if got := strings.Join(modelNames([]byte(test.output)), ","); got != test.want {
 			t.Fatalf("modelNames(%q) = %q, want %q", test.output, got, test.want)
