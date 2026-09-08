@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/roshbhatia/ask/main/schema/provider.schema.json
+version: provider/v1
+name: devin
+description: Devin CLI
+command: [ask-provider-devin]
+actions:
+  inference.generate:
+    description: Generate an answer with Devin CLI
+    argv:
+      - --model-flag=--model
+      - --prompt-flag=--print
+      - --
+      - devin
+      - --respect-workspace-trust
+      - "false"
+  provider.validate:
+    description: Validate the Devin adapter without model work
+    argv: [--validate, --model-flag=--model, --prompt-flag=--print, --, devin]
+requires:
+  commands: [devin]
+defaults:
+  timeout: 10m
+  model: gemini-3-8-flash-medium
+  light: gemini-3-8-flash-low

@@ -376,6 +376,7 @@ Print a schema template
 | `copilot` | GitHub Copilot CLI | `inference.generate`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-copilot'` |
 | `crush` | Crush CLI | `inference.generate`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-crush'` |
 | `cursor` | Cursor Agent CLI | `inference.generate`, `inference.models`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-cursor'` |
+| `devin` | Devin CLI | `inference.generate`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-devin'` |
 | `fx` | fx coding agent CLI | `inference.generate`, `inference.models`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-fx'` |
 | `goose` | Goose CLI | `inference.generate`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-goose'` |
 | `hermes` | Hermes Agent CLI | `inference.generate`, `provider.validate` | `nix profile install 'github:roshbhatia/ask?dir=extras#provider-hermes'` |
