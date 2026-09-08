@@ -15,7 +15,13 @@ import (
 
 func helperManifest(t *testing.T, directory, name, mode string) {
 	t.Helper()
+	helperManifestWithDefaults(t, directory, name, mode, shared.Defaults{})
+}
+
+func helperManifestWithDefaults(t *testing.T, directory, name, mode string, defaults shared.Defaults) {
+	t.Helper()
 	manifest := shared.Manifest{
+		Defaults:    defaults,
 		Version:     Protocol,
 		Name:        name,
 		Description: "test provider",
@@ -596,6 +602,92 @@ func TestWireRequestSchemaUsesTextInput(t *testing.T) {
 	input := properties["input"].(map[string]any)
 	if input["type"] != "string" {
 		t.Fatalf("input schema = %#v", input)
+	}
+}
+
+func startedModel(t *testing.T, agent Provider, requested string) string {
+	t.Helper()
+	events, err := agent.Run(context.Background(), Request{Prompt: "question", Model: requested, Dir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("Run(model=%q): %v", requested, err)
+	}
+	started := ""
+	for event := range events {
+		if event.Kind == Started {
+			started = event.Text
+		}
+	}
+	return started
+}
+
+func TestRunResolvesModelRolesBeforeTheAdapterSeesThem(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", root)
+	t.Setenv("ASK_PROVIDER_PATH", "")
+	directory := filepath.Join(root, "ask", "providers", "roles")
+	helperManifestWithDefaults(t, directory, "roles", "ok", shared.Defaults{Model: "large", Light: "small"})
+
+	one, found, err := Lookup("roles")
+	if err != nil || !found {
+		t.Fatalf("Lookup = %v, %v", found, err)
+	}
+	if defaultModel, light := one.ModelRoles(); defaultModel != "large" || light != "small" {
+		t.Fatalf("ModelRoles = %q, %q", defaultModel, light)
+	}
+
+	agent := one.New()
+	for requested, want := range map[string]string{
+		"":        "large",
+		"default": "large",
+		"light":   "small",
+		"custom":  "custom",
+	} {
+		if got := startedModel(t, agent, requested); got != want {
+			t.Fatalf("model %q reached the adapter as %q, want %q", requested, got, want)
+		}
+	}
+}
+
+func TestRunRejectsLightRoleWithoutADeclaredLightModel(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", root)
+	t.Setenv("ASK_PROVIDER_PATH", "")
+	directory := filepath.Join(root, "ask", "providers", "heavy")
+	helperManifestWithDefaults(t, directory, "heavy", "ok", shared.Defaults{Model: "large"})
+
+	agent, err := Find("heavy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = agent.Run(context.Background(), Request{Prompt: "question", Model: "light", Dir: root})
+	if err == nil || !strings.Contains(err.Error(), "no light model") {
+		t.Fatalf("error = %v, want a missing light model", err)
+	}
+	if got := startedModel(t, agent, ""); got != "large" {
+		t.Fatalf("plain request reached the adapter as %q, want the default", got)
+	}
+}
+
+func TestAskSchemaRequiresNonEmptyModelRoles(t *testing.T) {
+	raw, err := Schema()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatal(err)
+	}
+	definitions := document["$defs"].(map[string]any)
+	defaults := definitions["Defaults"].(map[string]any)
+	properties := defaults["properties"].(map[string]any)
+	for _, name := range []string{"model", "light"} {
+		field, ok := properties[name].(map[string]any)
+		if !ok {
+			t.Fatalf("defaults schema lacks %q: %#v", name, properties)
+		}
+		if field["type"] != "string" || field["minLength"] != float64(1) {
+			t.Fatalf("defaults.%s schema = %#v", name, field)
+		}
 	}
 }
 

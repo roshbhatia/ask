@@ -48,6 +48,8 @@ type Prompt struct {
 	Description string     `json:"description,omitempty" yaml:"description,omitempty"`
 	Prompt      string     `json:"prompt" yaml:"prompt"`
 	Schema      string     `json:"schema,omitempty" yaml:"schema,omitempty" jsonschema:"pattern=^[A-Za-z0-9][A-Za-z0-9._-]*$"`
+	Provider    string     `json:"provider,omitempty" yaml:"provider,omitempty" jsonschema:"pattern=^[A-Za-z0-9][A-Za-z0-9._-]*$,description=Provider to run unless -p names another"`
+	Model       string     `json:"model,omitempty" yaml:"model,omitempty" jsonschema:"minLength=1,description=Model id or the role word light or default; -m and -L override it"`
 	Variables   []Variable `json:"variables,omitempty" yaml:"variables,omitempty"`
 }
 
@@ -198,12 +200,29 @@ func SavePrompt(prompt Prompt) (string, error) {
 	if err := validatePrompt(prompt); err != nil {
 		return "", err
 	}
+	if err := validatePins(prompt); err != nil {
+		return "", err
+	}
 	if prompt.Schema != "" {
 		if _, err := LoadSchema(prompt.Schema); err != nil {
 			return "", fmt.Errorf("default schema: %w", err)
 		}
 	}
 	return path, write(path, promptSchemaURL, prompt)
+}
+
+// validatePins checks the provider and model a template pins. The provider is a
+// manifest name. The model is whatever the provider accepts, or one of the role
+// words "light" and "default", which ask resolves against the manifest at run
+// time; a blank one would silently mean "no pin", so it is rejected.
+func validatePins(prompt Prompt) error {
+	if prompt.Provider != "" && !validName.MatchString(prompt.Provider) {
+		return fmt.Errorf("invalid provider name %q", prompt.Provider)
+	}
+	if prompt.Model != "" && strings.TrimSpace(prompt.Model) == "" {
+		return errors.New("model pin cannot be blank; use a model id, light, or default")
+	}
+	return nil
 }
 
 func SaveSchema(schema Schema) (string, error) {

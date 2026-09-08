@@ -86,6 +86,7 @@ type options struct {
 	json           bool
 	spec           string
 	model          string
+	light          bool
 	provider       string
 	replay         bool
 	last           bool
@@ -177,6 +178,7 @@ func command(opts *options) *cobra.Command {
 	flags.BoolVarP(&opts.json, "json", "j", false, "answer in JSON, shape unspecified")
 	flags.StringVarP(&opts.spec, "schema", "s", "", "answer in JSON, in this shape: a field spec such as 'name:string, tags:[]string, count:int?', where a trailing question mark makes a field optional and a bar makes an enum, or @path to a JSON Schema file")
 	flags.StringVarP(&opts.model, "model", "m", "", "which model to run; press tab for the ones this agent names")
+	flags.BoolVarP(&opts.light, "light", "L", false, "run the provider's light model, the cheap one it declares for bulk work")
 	flags.StringVarP(&opts.provider, "provider", "p", "", "which installed provider to run")
 	flags.BoolVar(&opts.replay, "replay", false, "rerun the last input, with this prompt or the last one")
 	flags.BoolVarP(&opts.last, "last", "l", false, "send what the previous command printed, instead of stdin")
@@ -531,7 +533,7 @@ func promptCommand() *cobra.Command {
 		},
 	})
 
-	var description, schemaName string
+	var description, schemaName, providerName, modelName string
 	var variables []string
 	save := &cobra.Command{
 		Use:   "save NAME",
@@ -547,7 +549,8 @@ func promptCommand() *cobra.Command {
 				return err
 			}
 			path, err := templates.SavePrompt(templates.Prompt{
-				Name: args[0], Description: description, Prompt: string(raw), Schema: schemaName, Variables: declared,
+				Name: args[0], Description: description, Prompt: string(raw), Schema: schemaName,
+				Provider: providerName, Model: modelName, Variables: declared,
 			})
 			if err != nil {
 				return err
@@ -558,9 +561,17 @@ func promptCommand() *cobra.Command {
 	}
 	save.Flags().StringVar(&description, "description", "", "describe when to use this prompt")
 	save.Flags().StringVar(&schemaName, "schema", "", "associate a default schema template")
+	save.Flags().StringVar(&providerName, "provider", "", "pin the provider to run; -p on the run overrides it")
+	save.Flags().StringVar(&modelName, "model", "", "pin the model: an id the provider accepts, or light or default; -m and -L on the run override it")
 	save.Flags().StringArrayVar(&variables, "variable", nil, "declare NAME[:TYPE][=DEFAULT], where TYPE is string, bool, int, number, or json; repeat as needed")
 	_ = save.RegisterFlagCompletionFunc("schema", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 		return templateNames("schema"), cobra.ShellCompDirectiveNoFileComp
+	})
+	_ = save.RegisterFlagCompletionFunc("provider", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+		return agents(), cobra.ShellCompDirectiveNoFileComp
+	})
+	_ = save.RegisterFlagCompletionFunc("model", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+		return models(options{provider: providerName}), cobra.ShellCompDirectiveNoFileComp
 	})
 	cmd.AddCommand(save)
 	return cmd
@@ -798,8 +809,17 @@ func completionOptions(context string) options {
 }
 
 func flagCompletionKind(commandPath, flagName string) string {
-	if commandPath == "prompt save" && flagName == "schema" {
-		return "schema-templates"
+	if commandPath == "prompt save" {
+		switch flagName {
+		case "schema":
+			return "schema-templates"
+		case "provider":
+			return "providers"
+		case "model":
+			return "models"
+		default:
+			return ""
+		}
 	}
 	if commandPath != "" {
 		return ""
@@ -833,15 +853,19 @@ func argumentCompletionKind(commandPath string) string {
 	}
 }
 
-// models offers what the agent about to run accepts, read from that CLI's help.
+// models offers what the agent about to run accepts, read from that CLI's help,
+// after the role words its manifest backs.
 func models(opts options) []string {
 	one, found := modelProvider(opts)
 	if !found {
 		return nil
 	}
-	offer := one.Models()
+	offer := modelRoles(one)
 	for at, name := range offer {
 		offer[at] = name + "\t" + one.Blurb
+	}
+	for _, name := range one.Models() {
+		offer = append(offer, name+"\t"+one.Blurb)
 	}
 	return offer
 }
@@ -851,7 +875,22 @@ func modelNames(opts options) []string {
 	if !found {
 		return nil
 	}
-	return one.Models()
+	return append(modelRoles(one), one.Models()...)
+}
+
+// modelRoles lists the role words a manifest declares a model for, so a user can
+// pick the cheap model without knowing its id. The list is empty when the
+// manifest names nothing.
+func modelRoles(one provider.Info) []string {
+	defaultModel, light := one.ModelRoles()
+	var roles []string
+	if light != "" {
+		roles = append(roles, string(providerlib.RoleLight))
+	}
+	if defaultModel != "" {
+		roles = append(roles, string(providerlib.RoleDefault))
+	}
+	return roles
 }
 
 func modelProvider(opts options) (provider.Info, bool) {
@@ -1060,39 +1099,42 @@ func answer(result *provider.Result, structured bool) ([]byte, error) {
 	return []byte(text), nil
 }
 
-func promptFromTemplate(opts options) (string, string, error) {
+// promptFromTemplate renders the prompt to send and returns the template it came
+// from, whose Schema, Provider, and Model pins the caller may fold in. Without
+// --template the prompt is the bare words and the returned template is empty.
+func promptFromTemplate(opts options) (string, templates.Prompt, error) {
 	if opts.template == "" {
 		if len(opts.vars) > 0 {
-			return "", "", errors.New("--var requires --template")
+			return "", templates.Prompt{}, errors.New("--var requires --template")
 		}
-		return opts.prompt, "", nil
+		return opts.prompt, templates.Prompt{}, nil
 	}
 	if opts.prompt != "" {
-		return "", "", errors.New("use either --template or a prompt, not both")
+		return "", templates.Prompt{}, errors.New("use either --template or a prompt, not both")
 	}
 
 	prompt, err := templates.LoadPrompt(opts.template)
 	if err != nil {
-		return "", "", err
+		return "", templates.Prompt{}, err
 	}
 	values, err := templates.Values(opts.vars)
 	if err != nil {
-		return "", "", err
+		return "", templates.Prompt{}, err
 	}
 	for {
 		rendered, missing, err := templates.Resolve(prompt, values)
 		if err != nil {
-			return "", "", err
+			return "", templates.Prompt{}, err
 		}
 		if len(missing) == 0 {
-			return rendered, prompt.Schema, nil
+			return rendered, prompt, nil
 		}
 		if opts.quiet || !terminal.IsTTY(os.Stderr) {
 			names := make([]string, 0, len(missing))
 			for _, variable := range missing {
 				names = append(names, variable.Name)
 			}
-			return "", "", fmt.Errorf("prompt template %q needs --var for: %s", prompt.Name, strings.Join(names, ", "))
+			return "", templates.Prompt{}, fmt.Errorf("prompt template %q needs --var for: %s", prompt.Name, strings.Join(names, ", "))
 		}
 		for _, variable := range missing {
 			question := "value for " + variable.Name
@@ -1101,11 +1143,36 @@ func promptFromTemplate(opts options) (string, string, error) {
 			}
 			value, err := ui.Answer(question)
 			if err != nil {
-				return "", "", err
+				return "", templates.Prompt{}, err
 			}
 			values[variable.Name] = value
 		}
 	}
+}
+
+// requestedModel is what the provider is asked to run: a literal id, or the
+// role word "light" for its manifest to resolve. Empty means the provider's
+// own default.
+func requestedModel(opts options) string {
+	if opts.light {
+		return string(providerlib.RoleLight)
+	}
+	return opts.model
+}
+
+// withPins fills in what a prompt template pins where the flags said nothing.
+// -p beats the template's provider, and -m or -L beat its model.
+func withPins(opts options, pinned templates.Prompt) options {
+	if opts.schemaTemplate == "" && opts.spec == "" {
+		opts.schemaTemplate = pinned.Schema
+	}
+	if opts.provider == "" {
+		opts.provider = pinned.Provider
+	}
+	if opts.model == "" && !opts.light {
+		opts.model = pinned.Model
+	}
+	return opts
 }
 
 // once runs the agent to one result, drawing whichever view the terminal allows.
@@ -1222,14 +1289,15 @@ func run(opts options) error {
 	if opts.spec != "" && opts.schemaTemplate != "" {
 		return errors.New("use either --schema or --schema-template, not both")
 	}
+	if opts.model != "" && opts.light {
+		return errors.New("use either --model or --light, not both")
+	}
 
-	prompt, defaultSchema, err := promptFromTemplate(opts)
+	prompt, pinned, err := promptFromTemplate(opts)
 	if err != nil {
 		return err
 	}
-	if opts.schemaTemplate == "" && opts.spec == "" {
-		opts.schemaTemplate = defaultSchema
-	}
+	opts = withPins(opts, pinned)
 
 	var shape map[string]any
 	switch {
@@ -1292,7 +1360,7 @@ func run(opts options) error {
 	req := provider.Request{
 		Prompt: prompt,
 		Input:  string(input),
-		Model:  opts.model,
+		Model:  requestedModel(opts),
 		Schema: loose,
 		Dir:    here,
 	}

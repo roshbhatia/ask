@@ -56,7 +56,7 @@
             config.allowUnfree = true;
           };
           version = "0.5.3";
-          vendorHash = "sha256-iiC4emk93fFrT9XJxjnbsCwk6z7ClWIL/IdJ8OJagfg=";
+          vendorHash = "sha256-RAwn8ae0MlN5lfY0XbTev8fD4FgpITnIL79FENTmfYw=";
           buildGo =
             {
               name,
