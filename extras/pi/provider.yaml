@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/roshbhatia/ask/main/schema/provider.schema.json
+version: provider/v1
+name: pi
+description: pi coding agent CLI
+command: [ask-provider-pi]
+actions:
+  inference.generate:
+    description: Generate an answer with pi
+    argv:
+      - --model-flag=--model
+      - --
+      - pi
+      - --print
+      - --no-session
+  provider.validate:
+    description: Validate the pi adapter without model work
+    argv: [--validate, --model-flag=--model, --, pi]
+requires:
+  commands: [pi]
+defaults:
+  timeout: 10m
+  model: anthropic/claude-sonnet-5
+  light: anthropic/claude-haiku-4-5
