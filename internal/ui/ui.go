@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/roshbhatia/go-utils/cell"
 
 	"github.com/roshbhatia/ask/internal/provider"
 )
@@ -46,15 +47,11 @@ func depth(height int) int {
 // ErrStopped says the run ended because the keyboard asked it to.
 var ErrStopped = errors.New("stopped")
 
-type runKeys struct {
-	stop key.Binding
-}
+type runKeys struct{ stop key.Binding }
 
 func (k runKeys) ShortHelp() []key.Binding { return []key.Binding{k.stop} }
 
-var running = runKeys{
-	stop: key.NewBinding(key.WithKeys("ctrl+c", "esc"), key.WithHelp("ctrl+c", "stop")),
-}
+var running = runKeys{stop: bubbleBinding("run-stop")}
 
 type row struct {
 	name string
@@ -173,7 +170,7 @@ func (m *model) trim() {
 
 // first keeps the opening line of a block, since a whole block will not fit a row.
 func first(text string) string {
-	return clip(strings.TrimSpace(strings.SplitN(text, "\n", 2)[0]), 200)
+	return cell.Truncate(strings.TrimSpace(strings.SplitN(text, "\n", 2)[0]), 200)
 }
 
 // clock reads as a stopwatch, so a long run stays legible past a minute.
@@ -186,7 +183,7 @@ func clock(since time.Duration) string {
 func column(rows []row) int {
 	width := 0
 	for _, one := range rows {
-		if size := lipgloss.Width(one.name); size > width {
+		if size := cell.Width(one.name); size > width {
 			width = size
 		}
 	}
@@ -211,7 +208,7 @@ func (m model) View() string {
 		title: "ask",
 		width: width,
 		head: split(
-			m.strip.View()+" "+accent.Render(clip(status, width-cells-8)),
+			m.strip.View()+" "+accent.Render(cell.Truncate(status, width-cells-8)),
 			dim.Render(clock(time.Since(m.started))),
 			width,
 		),
@@ -219,8 +216,8 @@ func (m model) View() string {
 
 	gutter := column(m.rows)
 	for _, one := range m.rows {
-		name := one.gutter.Render(pad(clip(one.name, gutter), gutter))
-		text := one.body.Render(clip(one.text, width-gutter-3))
+		name := one.gutter.Render(cell.Fit(one.name, gutter))
+		text := one.body.Render(cell.Truncate(one.text, width-gutter-3))
 		shown.rows = append(shown.rows, " "+name+"  "+text)
 	}
 
@@ -231,9 +228,8 @@ func (m model) View() string {
 		if len(lines) > room {
 			lines = lines[len(lines)-room:]
 		}
-		fit := lipgloss.NewStyle().MaxWidth(width)
 		for _, line := range lines {
-			shown.rows = append(shown.rows, fit.Render(line))
+			shown.rows = append(shown.rows, cell.Truncate(line, width))
 		}
 	}
 

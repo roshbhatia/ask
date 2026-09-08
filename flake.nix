@@ -55,8 +55,8 @@
             inherit system;
             config.allowUnfree = true;
           };
-          version = "0.5.1";
-          vendorHash = "sha256-I4ZU2l6w7skhemzcDWr+thEkRYjr4vzctM52Cil/v0Q=";
+          version = "0.5.2";
+          vendorHash = "sha256-iiC4emk93fFrT9XJxjnbsCwk6z7ClWIL/IdJ8OJagfg=";
           buildGo =
             {
               name,

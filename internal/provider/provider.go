@@ -16,6 +16,7 @@ import (
 	"time"
 
 	shared "github.com/roshbhatia/go-utils/provider"
+	"github.com/roshbhatia/go-utils/xdg"
 
 	"github.com/roshbhatia/ask/internal/process"
 )
@@ -118,9 +119,9 @@ func providerDirectory() string {
 	if configured := strings.TrimSpace(os.Getenv("ASK_PROVIDERS_DIRECTORY")); configured != "" {
 		return configured
 	}
-	base := os.Getenv("XDG_CONFIG_HOME")
-	if base == "" {
-		base = filepath.Join(os.Getenv("HOME"), ".config")
+	base, err := xdg.ConfigHome()
+	if err != nil {
+		return filepath.Join(".config", "ask", "providers")
 	}
 	return filepath.Join(base, "ask", "providers")
 }
@@ -132,13 +133,7 @@ func providerRoots() []string {
 			result = append(result, path)
 		}
 	}
-	dataHome := strings.TrimSpace(os.Getenv("XDG_DATA_HOME"))
-	if dataHome == "" {
-		if home, err := os.UserHomeDir(); err == nil {
-			dataHome = filepath.Join(home, ".local", "share")
-		}
-	}
-	if dataHome != "" {
+	if dataHome, err := xdg.DataHome(); err == nil {
 		result = append(result, filepath.Join(dataHome, "ask", "providers"))
 	}
 	if executable, err := os.Executable(); err == nil {
@@ -153,7 +148,7 @@ func providerRoots() []string {
 		dataDirectories = "/usr/local/share:/usr/share"
 	}
 	for _, directory := range filepath.SplitList(dataDirectories) {
-		if directory != "" {
+		if filepath.IsAbs(directory) {
 			result = append(result, filepath.Join(directory, "ask", "providers"))
 		}
 	}

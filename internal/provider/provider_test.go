@@ -598,3 +598,28 @@ func TestWireRequestSchemaUsesTextInput(t *testing.T) {
 		t.Fatalf("input schema = %#v", input)
 	}
 }
+
+func TestProviderRootsUseAbsoluteXDGRules(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "relative-config")
+	t.Setenv("XDG_DATA_HOME", "relative-data")
+	t.Setenv("XDG_DATA_DIRS", "relative-system")
+	t.Setenv("ASK_PROVIDERS_DIRECTORY", "")
+	t.Setenv("ASK_PROVIDER_PATH", "")
+
+	roots := providerRoots()
+	for _, want := range []string{
+		filepath.Join(home, ".config", "ask", "providers"),
+		filepath.Join(home, ".local", "share", "ask", "providers"),
+	} {
+		if !slices.Contains(roots, want) {
+			t.Fatalf("provider roots do not contain %q: %#v", want, roots)
+		}
+	}
+	for _, root := range roots {
+		if strings.Contains(root, "relative-") {
+			t.Fatalf("provider roots retained a relative XDG root: %#v", roots)
+		}
+	}
+}

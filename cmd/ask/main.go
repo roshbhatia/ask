@@ -15,9 +15,9 @@ import (
 
 	"github.com/roshbhatia/go-utils/completion"
 	providerlib "github.com/roshbhatia/go-utils/provider"
+	"github.com/roshbhatia/go-utils/terminal"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"golang.org/x/term"
 
 	"github.com/roshbhatia/ask/internal/config"
 	"github.com/roshbhatia/ask/internal/provider"
@@ -956,7 +956,7 @@ func chosen(opts options) (provider.Provider, error) {
 		return provider.Find(settled)
 	}
 
-	if !term.IsTerminal(int(os.Stderr.Fd())) {
+	if !terminal.IsTTY(os.Stderr) {
 		return nil, fmt.Errorf("say which agent to run with -p, set $ASK_PROVIDER, or set %s", config.ProviderDefault)
 	}
 	known, err := provider.Discover()
@@ -1087,7 +1087,7 @@ func promptFromTemplate(opts options) (string, string, error) {
 		if len(missing) == 0 {
 			return rendered, prompt.Schema, nil
 		}
-		if opts.quiet || !term.IsTerminal(int(os.Stderr.Fd())) {
+		if opts.quiet || !terminal.IsTTY(os.Stderr) {
 			names := make([]string, 0, len(missing))
 			for _, variable := range missing {
 				names = append(names, variable.Name)
@@ -1120,7 +1120,7 @@ func once(req provider.Request, opts options, agent provider.Provider) (*provide
 
 	var result *provider.Result
 	switch {
-	case !opts.quiet && term.IsTerminal(int(os.Stderr.Fd())):
+	case !opts.quiet && terminal.IsTTY(os.Stderr):
 		if result, err = ui.Run(events, stop); err != nil {
 			return nil, err
 		}
@@ -1142,7 +1142,7 @@ func once(req provider.Request, opts options, agent provider.Provider) (*provide
 // converse runs the agent until the answer fits, carrying back either a reply to
 // its question or the reason its answer was rejected.
 func converse(req provider.Request, strict map[string]any, opts options, agent provider.Provider) (*provider.Result, error) {
-	human := !opts.quiet && term.IsTerminal(int(os.Stderr.Fd()))
+	human := !opts.quiet && terminal.IsTTY(os.Stderr)
 
 	for round := 1; ; round++ {
 		result, err := once(req, opts, agent)

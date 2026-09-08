@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/roshbhatia/go-utils/cell"
 
 	"github.com/roshbhatia/ask/internal/provider"
 )
@@ -26,11 +26,11 @@ func (k pickKeys) ShortHelp() []key.Binding {
 }
 
 var picking = pickKeys{
-	up:     key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
-	down:   key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
-	take:   key.NewBinding(key.WithKeys("enter", " "), key.WithHelp("enter", "run it")),
-	number: key.NewBinding(key.WithKeys("1", "2", "3", "4", "5", "6", "7", "8", "9"), key.WithHelp("1-9", "jump")),
-	quit:   key.NewBinding(key.WithKeys("ctrl+c", "esc", "q"), key.WithHelp("q", "quit")),
+	up:     bubbleBinding("pick-up"),
+	down:   bubbleBinding("pick-down"),
+	take:   bubbleBinding("pick-take"),
+	number: bubbleBinding("pick-number"),
+	quit:   bubbleBinding("pick-quit"),
 }
 
 type picker struct {
@@ -85,15 +85,15 @@ func (p picker) View() string {
 
 	gutter := 0
 	for _, one := range p.offer {
-		if size := lipgloss.Width(one.Name); size > gutter {
+		if size := cell.Width(one.Name); size > gutter {
 			gutter = size
 		}
 	}
 
 	for at, one := range p.offer {
-		mark, name := "  ", dim.Render(pad(one.Name, gutter))
+		mark, name := "  ", dim.Render(cell.Fit(one.Name, gutter))
 		if at == p.at {
-			mark, name = accent.Render("❯ "), chosen.Render(pad(one.Name, gutter))
+			mark, name = accent.Render("❯ "), chosen.Render(cell.Fit(one.Name, gutter))
 		}
 
 		said := dim.Render(one.Blurb)
