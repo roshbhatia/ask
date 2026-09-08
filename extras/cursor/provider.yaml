@@ -25,3 +25,5 @@ requires:
   commands: [cursor-agent]
 defaults:
   timeout: 10m
+  model: gemini-3.8-flash-medium
+  light: gemini-3.8-flash-low
