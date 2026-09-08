@@ -99,10 +99,12 @@ func Run(arguments []string, stdin io.Reader, stdout io.Writer) error {
 
 func runModels(ctx context.Context, commandLine []string, stdout io.Writer) error {
 	output, err := process.CommandContext(ctx, commandLine[0], commandLine[1:]...).Output()
-	if err != nil {
+	models := modelNames(output)
+	// A CLI that leaves a descriptor open past its own exit fails the wait once
+	// the listing is already complete, so a listing outranks that error.
+	if err != nil && len(models) == 0 {
 		return err
 	}
-	models := modelNames(output)
 	return json.NewEncoder(stdout).Encode(map[string]any{"version": core.Protocol, "models": models})
 }
 
