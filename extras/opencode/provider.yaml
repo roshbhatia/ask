@@ -21,5 +21,5 @@ requires:
   commands: [opencode]
 defaults:
   timeout: 10m
-  model: anthropic/claude-sonnet-5
-  light: anthropic/claude-haiku-4-5
+  model: github-copilot/claude-haiku-4.5
+  light: github-copilot/gemini-3.8-flash
