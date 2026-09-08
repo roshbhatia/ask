@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/roshbhatia/go-utils/cell"
 )
 
 type answerKeys struct {
@@ -19,8 +20,8 @@ type answerKeys struct {
 func (k answerKeys) ShortHelp() []key.Binding { return []key.Binding{k.take, k.quit} }
 
 var answering = answerKeys{
-	take: key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "answer")),
-	quit: key.NewBinding(key.WithKeys("ctrl+c", "esc"), key.WithHelp("esc", "give up")),
+	take: bubbleBinding("answer-take"),
+	quit: bubbleBinding("answer-quit"),
 }
 
 type asker struct {
@@ -65,7 +66,7 @@ func (a asker) View() string {
 	shown := frame{
 		title: "ask",
 		width: width,
-		head:  accent.Render(clip(a.question, width)),
+		head:  accent.Render(cell.Truncate(a.question, width)),
 		rows:  []string{a.field.View()},
 	}
 	return shown.String() + "\n" + dim.Render("  "+a.help.ShortHelpView(answering.ShortHelp())) + "\n"

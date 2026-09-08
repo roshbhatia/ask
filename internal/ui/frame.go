@@ -5,6 +5,9 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/roshbhatia/go-utils/cell"
+	"github.com/roshbhatia/go-utils/terminal"
+	shared "github.com/roshbhatia/go-utils/ui"
 )
 
 const (
@@ -13,13 +16,14 @@ const (
 )
 
 var (
-	slots = scheme()
+	slots   = scheme()
+	palette = shared.TerminalPalette()
 
-	dim    = paint(slots, "base04", "245")
-	accent = paint(slots, "base0D", "111")
-	bad    = paint(slots, "base08", "203")
-	tool   = paint(slots, "base0B", "150")
-	edge   = paint(slots, "base02", "238")
+	dim    = paint(slots, "base04", string(palette.Muted))
+	accent = paint(slots, "base0D", string(palette.Accent))
+	bad    = paint(slots, "base08", string(palette.Danger))
+	tool   = paint(slots, "base0B", string(palette.Success))
+	edge   = paint(slots, "base02", string(palette.Border))
 	chosen = accent.Bold(true)
 )
 
@@ -38,31 +42,16 @@ func inner(terminal int) int {
 	return room
 }
 
-// clip cuts to width in runes, not bytes, so a multibyte line keeps its shape.
-func clip(text string, width int) string {
-	if width <= 0 {
-		return ""
-	}
-	runes := []rune(text)
-	if len(runes) <= width {
-		return text
-	}
-	if width == 1 {
-		return "…"
-	}
-	return string(runes[:width-1]) + "…"
-}
-
-func pad(text string, width int) string {
-	if room := width - lipgloss.Width(text); room > 0 {
-		return text + strings.Repeat(" ", room)
-	}
-	return text
-}
-
 // split lays a left half and a right half against the two ends of one row.
 func split(left, right string, width int) string {
-	gap := width - lipgloss.Width(left) - lipgloss.Width(right)
+	if width < 1 {
+		return ""
+	}
+	if cell.Width(right) >= width {
+		return cell.RightFit(right, width)
+	}
+	left = cell.Truncate(left, width-cell.Width(right)-1)
+	gap := width - cell.Width(left) - cell.Width(right)
 	if gap < 1 {
 		gap = 1
 	}
@@ -81,11 +70,11 @@ func (f frame) String() string {
 	across := f.width + 2
 
 	var out strings.Builder
-	out.WriteString(edge.Render(border.TopLeft+" ") + accent.Render(f.title) + edge.Render(" "+strings.Repeat(border.Top, max(across-2-lipgloss.Width(f.title), 0))+border.TopRight))
+	out.WriteString(edge.Render(border.TopLeft+" ") + accent.Render(f.title) + edge.Render(" "+strings.Repeat(border.Top, max(across-2-cell.Width(f.title), 0))+border.TopRight))
 	out.WriteString("\n")
 
 	write := func(row string) {
-		out.WriteString(edge.Render(border.Left) + " " + pad(row, f.width) + " " + edge.Render(border.Right) + "\n")
+		out.WriteString(edge.Render(border.Left) + " " + cell.Fit(row, f.width) + " " + edge.Render(border.Right) + "\n")
 	}
 	if f.head != "" {
 		write(f.head)
@@ -104,6 +93,10 @@ func (f frame) String() string {
 func console() *os.File {
 	handle, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
 	if err != nil {
+		return nil
+	}
+	if !terminal.IsTTY(handle) {
+		_ = handle.Close()
 		return nil
 	}
 	return handle

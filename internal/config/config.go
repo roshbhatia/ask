@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	shared "github.com/roshbhatia/go-utils/config"
+	"github.com/roshbhatia/go-utils/xdg"
 	"go.yaml.in/yaml/v3"
 
 	"github.com/roshbhatia/ask/internal/provider"
@@ -90,13 +91,9 @@ func Path() string {
 }
 
 func legacyPath() string {
-	base := os.Getenv("XDG_CONFIG_HOME")
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return filepath.Join(".config", "ask", "config.json")
-		}
-		base = filepath.Join(home, ".config")
+	base, err := xdg.ConfigHome()
+	if err != nil {
+		return filepath.Join(".config", "ask", "config.json")
 	}
 	return filepath.Join(base, "ask", "config.json")
 }

@@ -8,6 +8,7 @@ import (
 	"regexp"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/roshbhatia/go-utils/xdg"
 )
 
 // Written by `modules/darwin/home/hammerspoon/default.nix` from the host's
@@ -17,14 +18,11 @@ const themeFile = "sysinit/theme_config.json"
 var hex = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
 func themePath() string {
-	if home := os.Getenv("XDG_CONFIG_HOME"); home != "" {
-		return filepath.Join(home, themeFile)
-	}
-	home, err := os.UserHomeDir()
+	home, err := xdg.ConfigHome()
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(home, ".config", themeFile)
+	return filepath.Join(home, themeFile)
 }
 
 // scheme answers the host's base16 slots, or nil when nothing wrote them.

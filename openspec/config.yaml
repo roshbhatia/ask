@@ -1,6 +1,0 @@
-schema: spec-driven
-
-context: |
-  Ask is a provider-neutral Go CLI built with Cobra and packaged with Nix.
-  Optional inference integrations live under extras and communicate through
-  the provider/v1 protocol. Generated artifacts remain committed and checked.

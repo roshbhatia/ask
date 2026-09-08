@@ -62,3 +62,14 @@ func TestConfigSchemaNamesVersionAndProvider(t *testing.T) {
 		}
 	}
 }
+
+func TestLegacyPathIgnoresRelativeXDGRoot(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "relative")
+
+	want := filepath.Join(home, ".config", "ask", "config.json")
+	if got := legacyPath(); got != want {
+		t.Fatalf("legacyPath() = %q, want %q", got, want)
+	}
+}
