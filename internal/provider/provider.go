@@ -103,11 +103,18 @@ func (i Info) Ready() bool {
 	return (shared.Validator{}).Validate(i.manifest, filepath.Dir(i.path)).OK()
 }
 
+// modelsTimeout bounds a completion listing. A completion that blocks is worse
+// than a short one, so this stays well under a manifest's own timeout.
+const modelsTimeout = 5 * time.Second
+
 func (i Info) Models() []string {
 	if _, ok := i.manifest.Actions[ActionModels]; !ok || !i.Ready() {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	// Same ceiling the validate path uses. 3s silently returned nothing when a
+	// provider's first listing was a cold network fetch: one measured 3.17s
+	// cold and landed inside the budget only once warm.
+	ctx, cancel := context.WithTimeout(context.Background(), modelsTimeout)
 	defer cancel()
 	plan, err := i.manifest.Render(ActionModels, map[string]any{})
 	if err != nil {
