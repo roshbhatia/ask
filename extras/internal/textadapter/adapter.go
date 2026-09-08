@@ -130,6 +130,10 @@ func modelNames(output []byte) []string {
 	}
 	models := make([]string, 0)
 	for _, line := range strings.Split(string(output), "\n") {
+		// A listing may pair each id with a human label; the id is the first column.
+		if id, _, tabbed := strings.Cut(line, "\t"); tabbed {
+			line = id
+		}
 		if line = strings.TrimSpace(line); line != "" {
 			models = append(models, line)
 		}

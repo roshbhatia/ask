@@ -99,6 +99,7 @@ func TestModelNamesAcceptsJSONAndText(t *testing.T) {
 	}{
 		{output: `{"models":[{"id":"large"},{"id":"small"}]}`, want: "large,small"},
 		{output: "large\nsmall\n", want: "large,small"},
+		{output: "large\tLarge (High)\nsmall\tSmall (Low)\n", want: "large,small"},
 	} {
 		if got := strings.Join(modelNames([]byte(test.output)), ","); got != test.want {
 			t.Fatalf("modelNames(%q) = %q, want %q", test.output, got, test.want)
