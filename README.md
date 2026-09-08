@@ -161,6 +161,7 @@ extras/
 ├── fx/{default.nix,main.go,runtime.nix,provider.yaml}
 ├── goose/{default.nix,main.go,provider.yaml}
 ├── opencode/{default.nix,main.go,provider.yaml}
+├── pi/{default.nix,main.go,provider.yaml}
 └── hermes/{flake.nix,main.go,provider.yaml}
 ```
 
@@ -379,5 +380,6 @@ Print a schema template
 | `goose` | Goose CLI | `inference.generate`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-goose'` |
 | `hermes` | Hermes Agent CLI | `inference.generate`, `provider.validate` | `nix profile install 'github:roshbhatia/ask?dir=extras#provider-hermes'` |
 | `opencode` | opencode CLI | `inference.generate`, `inference.models`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-opencode'` |
+| `pi` | pi coding agent CLI | `inference.generate`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-pi'` |
 
 <!-- END GENERATED:providers -->
