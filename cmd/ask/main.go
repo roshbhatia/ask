@@ -81,6 +81,9 @@ A prompt template can name its default schema template.
   %[1]s prompt save review --schema review-result --variable repo:string --variable strict:bool=true
   %[1]s --template review --var repo=ask`
 
+// version is set by the release build; a source build reports dev.
+var version = "dev"
+
 type options struct {
 	prompt         string
 	json           bool
@@ -119,6 +122,11 @@ func (o options) show() string {
 		return "last"
 	}
 	return ""
+}
+
+// specVersion is the provider contract the linked go-utils validates against.
+func specVersion() string {
+	return providerlib.Version + " spec " + providerlib.SpecVersion
 }
 
 func called() string {
@@ -161,6 +169,10 @@ func command(opts *options) *cobra.Command {
 		Long:  fmt.Sprintf(about, name),
 		Args:  cobra.ArbitraryArgs,
 
+		// The second line names the provider contract this build validates
+		// against, so a fleet check can read one line from every tool.
+		Version: version,
+
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(_ *cobra.Command, args []string) error {
@@ -172,6 +184,8 @@ func command(opts *options) *cobra.Command {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		},
 	}
+
+	cmd.SetVersionTemplate("{{.Name}} {{.Version}}\n" + specVersion() + "\n")
 
 	flags := cmd.Flags()
 	flags.SetInterspersed(false)
@@ -480,6 +494,7 @@ func providerCommand() *cobra.Command {
 				}
 				return nil
 			}
+			fmt.Println(specVersion())
 			for _, report := range reports {
 				status := "ok"
 				if !report.OK() {

@@ -3,12 +3,19 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    # The canonical provider/v1 contract. schema/narrow.cue adds Ask's rules on
+    # top of it; schema/provider.schema.json must stay byte-identical to its export.
+    provider-spec = {
+      url = "github:roshbhatia/provider-spec/v1.0.0";
+      flake = false;
+    };
   };
 
   outputs =
     {
       self,
       nixpkgs,
+      provider-spec,
       ...
     }:
     let
@@ -56,7 +63,7 @@
             config.allowUnfree = true;
           };
           version = "0.7.0";
-          vendorHash = "sha256-RAwn8ae0MlN5lfY0XbTev8fD4FgpITnIL79FENTmfYw=";
+          vendorHash = "sha256-4L/df1l1J7G8vZD8x85XM/uZGQ/tdidxI9ZptumoJxY=";
           buildGo =
             {
               name,
@@ -69,6 +76,7 @@
               inherit version vendorHash;
               src = ./.;
               subPackages = [ subPackage ];
+              ldflags = [ "-X main.version=${version}" ];
               nativeCheckInputs = lib.optionals check [
                 pkgs.cue
                 pkgs.ripgrep
@@ -77,7 +85,7 @@
               checkPhase = lib.optionalString check ''
                 runHook preCheck
                 go test -race ./...
-                ${pkgs.bash}/bin/bash ./hack/generate.sh --check
+                PROVIDER_SPEC=${provider-spec} ${pkgs.bash}/bin/bash ./hack/generate.sh --check
                 runHook postCheck
               '';
               postInstall = lib.optionalString (builtName != name) ''
@@ -242,6 +250,33 @@
                 ) names}
                 touch "$out"
               '';
+          # The committed schema is the pinned spec export, the manifests satisfy
+          # the spec plus schema/narrow.cue, and the binary reports the spec
+          # version the flake pins.
+          provider-spec-contract =
+            pkgs.runCommand "ask-provider-spec-contract"
+              {
+                nativeBuildInputs = [
+                  pkgs.cue
+                  pkgs.diffutils
+                ];
+              }
+              ''
+                cd ${./.}
+                export HOME="$TMPDIR"
+                diff -u ${provider-spec}/schema/provider.schema.json schema/provider.schema.json
+                for manifest in extras/*/provider.yaml; do
+                  cue vet -d '#Manifest' ${provider-spec}/provider.cue schema/narrow.cue "$manifest"
+                done
+                for fixture in schema/fixtures/*.yaml; do
+                  if cue vet -d '#Manifest' ${provider-spec}/provider.cue schema/narrow.cue "$fixture" 2>/dev/null; then
+                    echo "reject expected: $fixture" >&2
+                    exit 1
+                  fi
+                done
+                ${packages.ask}/bin/ask --version | grep --fixed-strings --line-regexp "provider/v1 spec $(cat ${provider-spec}/VERSION)"
+                touch "$out"
+              '';
           media-freshness =
             pkgs.runCommand "ask-media-freshness"
               {
@@ -286,6 +321,7 @@
             ];
             shellHook = ''
               export GOTOOLCHAIN=local
+              export PROVIDER_SPEC=${provider-spec}
             '';
           };
         }
