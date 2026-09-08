@@ -19,5 +19,5 @@ requires:
   commands: [pi]
 defaults:
   timeout: 10m
-  model: anthropic/claude-sonnet-5
+  model: anthropic/claude-haiku-4-5
   light: anthropic/claude-haiku-4-5
