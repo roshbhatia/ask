@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/roshbhatia/ask/main/schema/provider.schema.json
+version: provider/v1
+name: opencode
+description: opencode CLI
+command: [ask-provider-opencode]
+actions:
+  inference.generate:
+    description: Generate an answer with opencode
+    argv:
+      - --model-flag=--model
+      - --
+      - opencode
+      - run
+  inference.models:
+    description: List opencode models
+    argv: [--models, --, opencode, models]
+  provider.validate:
+    description: Validate the opencode adapter without model work
+    argv: [--validate, --model-flag=--model, --, opencode]
+requires:
+  commands: [opencode]
+defaults:
+  timeout: 10m
+  model: anthropic/claude-sonnet-5
+  light: anthropic/claude-haiku-4-5
