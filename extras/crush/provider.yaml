@@ -19,3 +19,5 @@ requires:
   commands: [crush]
 defaults:
   timeout: 10m
+  model: copilot/claude-haiku-4.5
+  light: copilot/gemini-3.8-flash

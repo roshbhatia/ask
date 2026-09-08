@@ -23,3 +23,5 @@ requires:
   commands: [copilot]
 defaults:
   timeout: 10m
+  model: claude-haiku-4.5
+  light: gemini-3.8-flash
