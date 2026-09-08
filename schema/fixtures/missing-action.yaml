@@ -1,0 +1,8 @@
+# Rejected: Ask requires provider.validate beside inference.generate.
+version: provider/v1
+name: missing-action-fixture
+description: Manifest without the provider.validate action
+command: [fixture]
+actions:
+  inference.generate:
+    description: This manifest must fail schema validation

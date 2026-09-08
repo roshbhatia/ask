@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -570,20 +571,17 @@ func TestSendEventStopsWhenCanceled(t *testing.T) {
 	}
 }
 
-func TestAskSchemaRequiresGenerateAndValidationActions(t *testing.T) {
-	raw, err := Schema()
+func TestSchemaIsTheSpecBytes(t *testing.T) {
+	got, err := Schema()
 	if err != nil {
 		t.Fatal(err)
 	}
-	var document map[string]any
-	if err := json.Unmarshal(raw, &document); err != nil {
+	want, err := shared.Schema()
+	if err != nil {
 		t.Fatal(err)
 	}
-	properties := document["properties"].(map[string]any)
-	actions := properties["actions"].(map[string]any)
-	required := actions["required"].([]any)
-	if len(required) != 2 || required[0] != ActionGenerate || required[1] != ActionValidate {
-		t.Fatalf("required actions = %#v", required)
+	if !bytes.Equal(got, want) {
+		t.Fatal("ask edits the provider schema instead of shipping the spec")
 	}
 }
 
@@ -665,29 +663,6 @@ func TestRunRejectsLightRoleWithoutADeclaredLightModel(t *testing.T) {
 	}
 	if got := startedModel(t, agent, ""); got != "large" {
 		t.Fatalf("plain request reached the adapter as %q, want the default", got)
-	}
-}
-
-func TestAskSchemaRequiresNonEmptyModelRoles(t *testing.T) {
-	raw, err := Schema()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var document map[string]any
-	if err := json.Unmarshal(raw, &document); err != nil {
-		t.Fatal(err)
-	}
-	definitions := document["$defs"].(map[string]any)
-	defaults := definitions["Defaults"].(map[string]any)
-	properties := defaults["properties"].(map[string]any)
-	for _, name := range []string{"model", "light"} {
-		field, ok := properties[name].(map[string]any)
-		if !ok {
-			t.Fatalf("defaults schema lacks %q: %#v", name, properties)
-		}
-		if field["type"] != "string" || field["minLength"] != float64(1) {
-			t.Fatalf("defaults.%s schema = %#v", name, field)
-		}
 	}
 }
 
