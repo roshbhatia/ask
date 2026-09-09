@@ -1,0 +1,9 @@
+{
+  "name": "codex",
+  "core": "ask",
+  "nix": "github:roshbhatia/ask#provider-codex",
+  "brew": "ask-provider-codex",
+  "binary": "ask-provider-codex",
+  "runtime_note": "This adapter calls `codex`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
+  "manifest_path": "share/ask/providers/codex/provider.yaml"
+}

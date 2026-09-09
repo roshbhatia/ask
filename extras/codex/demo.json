@@ -1,11 +1,6 @@
 {
   "name": "codex",
-  "summary": "Replay an offline token parser review with codex",
-  "replay": true,
-  "core": "ask",
-  "nix": "github:roshbhatia/ask#provider-codex",
-  "brew": "ask-provider-codex",
-  "binary": "ask-provider-codex",
-  "runtime_note": "This adapter calls `codex`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
-  "manifest_path": "share/ask/providers/codex/provider.yaml"
+  "summary": "Select codex in Ask and explain the Changes release archive fix",
+  "status": "recorded",
+  "recording": "../../docs/ask.gif"
 }

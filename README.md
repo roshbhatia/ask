@@ -4,6 +4,12 @@
 
 ![Ask animated code review](docs/ask.gif)
 
+Recorded with Ask 0.7.1, its real Codex adapter, and `gpt-5.6-luna`. The recording pipes
+[a release archive fix](https://github.com/roshbhatia/changes/commit/6147beb23c88864180be2cccdec9a52dd1a3a6fc)
+into Ask, selects Codex interactively, and waits for its answer.
+[Tape source](hack/ask.tape). Regeneration requires an authenticated Codex CLI;
+answers and response times can differ between runs.
+
 `ask` sends a prompt and optional standard input to any local agent harness that
 implements its provider protocol.
 

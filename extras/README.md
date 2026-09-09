@@ -26,19 +26,19 @@ adapter and its CLI dependency.
 
 <!-- BEGIN GENERATED CATALOG -->
 
-| Extra | Task | Demo |
+| Extra | Capability | Recording |
 |---|---|---|
-| [antigravity](antigravity/README.md) | Replay an offline token parser review with antigravity | [Tape](antigravity/demo.tape) |
-| [claude](claude/README.md) | Replay an offline token parser review with claude | [Tape](claude/demo.tape) |
-| [codex](codex/README.md) | Replay an offline token parser review with codex | [Tape](codex/demo.tape) |
-| [copilot](copilot/README.md) | Replay an offline token parser review with copilot | [Tape](copilot/demo.tape) |
-| [crush](crush/README.md) | Replay an offline token parser review with crush | [Tape](crush/demo.tape) |
-| [cursor](cursor/README.md) | Replay an offline token parser review with cursor | [Tape](cursor/demo.tape) |
-| [devin](devin/README.md) | Replay an offline token parser review with devin | [Tape](devin/demo.tape) |
-| [fx](fx/README.md) | Replay an offline token parser review with fx | [Tape](fx/demo.tape) |
-| [goose](goose/README.md) | Replay an offline token parser review with goose | [Tape](goose/demo.tape) |
-| [hermes](hermes/README.md) | Replay an offline token parser review with hermes | [Tape](hermes/demo.tape) |
-| [opencode](opencode/README.md) | Replay an offline token parser review with opencode | [Tape](opencode/demo.tape) |
-| [pi](pi/README.md) | Replay an offline token parser review with pi | [Tape](pi/demo.tape) |
+| [antigravity](antigravity/README.md) | Antigravity CLI | Pending |
+| [claude](claude/README.md) | Claude Code | Pending |
+| [codex](codex/README.md) | Codex CLI | [Demo](codex/README.md#demo) |
+| [copilot](copilot/README.md) | GitHub Copilot CLI | Pending |
+| [crush](crush/README.md) | Crush CLI | Pending |
+| [cursor](cursor/README.md) | Cursor Agent CLI | Pending |
+| [devin](devin/README.md) | Devin CLI | Pending |
+| [fx](fx/README.md) | fx coding agent CLI | Pending |
+| [goose](goose/README.md) | Goose CLI | Pending |
+| [hermes](hermes/README.md) | Hermes Agent CLI | Pending |
+| [opencode](opencode/README.md) | opencode CLI | Pending |
+| [pi](pi/README.md) | pi coding agent CLI | Pending |
 
 <!-- END GENERATED CATALOG -->

@@ -1,14 +1,5 @@
 {
   "name": "opencode",
-  "summary": "Replay an offline token parser review with opencode",
-  "replay": true,
-  "core": "ask",
-  "nix": "github:roshbhatia/ask#provider-opencode",
-  "brew": "ask-provider-opencode",
-  "binary": "ask-provider-opencode",
-  "dependencies": [
-    "opencode"
-  ],
-  "runtime_note": "This adapter calls `opencode`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
-  "manifest_path": "share/ask/providers/opencode/provider.yaml"
+  "summary": "Select opencode in Ask and explain the Changes release archive fix",
+  "status": "pending"
 }

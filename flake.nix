@@ -81,6 +81,7 @@
                 pkgs.cue
                 pkgs.ripgrep
                 pkgs.python3
+                pkgs.uv
               ];
               doCheck = check;
               checkPhase = lib.optionalString check ''
@@ -198,6 +199,7 @@
                 nativeBuildInputs = [
                   pkgs.ripgrep
                   pkgs.python3
+                  pkgs.uv
                 ];
               }
               ''
@@ -311,7 +313,8 @@
         {
           default = pkgs.mkShellNoCC {
             packages = [
-              (pkgs.python3.withPackages (ps: [ ps.pyyaml ]))
+              pkgs.python3
+              pkgs.uv
               pkgs.ffmpeg
               pkgs.git
               pkgs.go
@@ -328,6 +331,7 @@
               pkgs.fish
               pkgs.nushell
               pkgs.shfmt
+              pkgs.shellcheck
             ];
             shellHook = ''
               export GOTOOLCHAIN=local

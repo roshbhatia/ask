@@ -1,0 +1,12 @@
+{
+  "name": "crush",
+  "core": "ask",
+  "nix": "github:roshbhatia/ask#provider-crush",
+  "brew": "ask-provider-crush",
+  "binary": "ask-provider-crush",
+  "dependencies": [
+    "crush"
+  ],
+  "runtime_note": "This adapter calls `crush`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
+  "manifest_path": "share/ask/providers/crush/provider.yaml"
+}

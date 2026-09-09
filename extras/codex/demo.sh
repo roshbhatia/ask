@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-cd "$root"
-exec python3 hack/demo-extra.py codex
+if [[ ${1:-} == --record && $# == 1 ]]; then
+  exec bash "$root/extras/codex/record-main.sh"
+fi
+export ASK_DEMO_MODEL=gpt-5.6-luna
+exec bash "$root/hack/demo-extra.sh" codex "$@"

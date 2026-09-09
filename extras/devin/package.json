@@ -1,0 +1,9 @@
+{
+  "name": "devin",
+  "core": "ask",
+  "nix": "github:roshbhatia/ask#provider-devin",
+  "brew": "ask-provider-devin",
+  "binary": "ask-provider-devin",
+  "runtime_note": "This adapter calls `devin`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
+  "manifest_path": "share/ask/providers/devin/provider.yaml"
+}

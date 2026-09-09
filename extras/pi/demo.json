@@ -1,11 +1,5 @@
 {
   "name": "pi",
-  "summary": "Replay an offline token parser review with pi",
-  "replay": true,
-  "core": "ask",
-  "nix": "github:roshbhatia/ask#provider-pi",
-  "brew": "ask-provider-pi",
-  "binary": "ask-provider-pi",
-  "runtime_note": "This adapter calls `pi`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
-  "manifest_path": "share/ask/providers/pi/provider.yaml"
+  "summary": "Select pi in Ask and explain the Changes release archive fix",
+  "status": "pending"
 }

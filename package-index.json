@@ -3,142 +3,130 @@
   "providers": [
     {
       "name": "antigravity",
-      "summary": "Replay an offline token parser review with antigravity",
-      "replay": true,
       "core": "ask",
       "nix": "github:roshbhatia/ask#provider-antigravity",
       "brew": "ask-provider-antigravity",
       "binary": "ask-provider-antigravity",
       "runtime_note": "This adapter calls `agy`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
-      "manifest_path": "share/ask/providers/antigravity/provider.yaml"
+      "manifest_path": "share/ask/providers/antigravity/provider.yaml",
+      "summary": "Antigravity CLI"
     },
     {
       "name": "claude",
-      "summary": "Replay an offline token parser review with claude",
-      "replay": true,
       "core": "ask",
       "nix": "github:roshbhatia/ask#provider-claude",
       "brew": "ask-provider-claude",
       "binary": "ask-provider-claude",
       "runtime_note": "This adapter calls `claude`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
-      "manifest_path": "share/ask/providers/claude/provider.yaml"
+      "manifest_path": "share/ask/providers/claude/provider.yaml",
+      "summary": "Claude Code"
     },
     {
       "name": "codex",
-      "summary": "Replay an offline token parser review with codex",
-      "replay": true,
       "core": "ask",
       "nix": "github:roshbhatia/ask#provider-codex",
       "brew": "ask-provider-codex",
       "binary": "ask-provider-codex",
       "runtime_note": "This adapter calls `codex`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
-      "manifest_path": "share/ask/providers/codex/provider.yaml"
+      "manifest_path": "share/ask/providers/codex/provider.yaml",
+      "summary": "Codex CLI"
     },
     {
       "name": "copilot",
-      "summary": "Replay an offline token parser review with copilot",
-      "replay": true,
       "core": "ask",
       "nix": "github:roshbhatia/ask#provider-copilot",
       "brew": "ask-provider-copilot",
       "binary": "ask-provider-copilot",
       "runtime_note": "This adapter calls `copilot`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
-      "manifest_path": "share/ask/providers/copilot/provider.yaml"
+      "manifest_path": "share/ask/providers/copilot/provider.yaml",
+      "summary": "GitHub Copilot CLI"
     },
     {
       "name": "crush",
-      "summary": "Replay an offline token parser review with crush",
-      "replay": true,
       "core": "ask",
       "nix": "github:roshbhatia/ask#provider-crush",
       "brew": "ask-provider-crush",
       "binary": "ask-provider-crush",
+      "runtime_note": "This adapter calls `crush`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
+      "manifest_path": "share/ask/providers/crush/provider.yaml",
       "dependencies": [
         "crush"
       ],
-      "runtime_note": "This adapter calls `crush`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
-      "manifest_path": "share/ask/providers/crush/provider.yaml"
+      "summary": "Crush CLI"
     },
     {
       "name": "cursor",
-      "summary": "Replay an offline token parser review with cursor",
-      "replay": true,
       "core": "ask",
       "nix": "github:roshbhatia/ask#provider-cursor",
       "brew": "ask-provider-cursor",
       "binary": "ask-provider-cursor",
       "runtime_note": "This adapter calls `cursor-agent`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
-      "manifest_path": "share/ask/providers/cursor/provider.yaml"
+      "manifest_path": "share/ask/providers/cursor/provider.yaml",
+      "summary": "Cursor Agent CLI"
     },
     {
       "name": "devin",
-      "summary": "Replay an offline token parser review with devin",
-      "replay": true,
       "core": "ask",
       "nix": "github:roshbhatia/ask#provider-devin",
       "brew": "ask-provider-devin",
       "binary": "ask-provider-devin",
       "runtime_note": "This adapter calls `devin`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
-      "manifest_path": "share/ask/providers/devin/provider.yaml"
+      "manifest_path": "share/ask/providers/devin/provider.yaml",
+      "summary": "Devin CLI"
     },
     {
       "name": "fx",
-      "summary": "Replay an offline token parser review with fx",
-      "replay": true,
       "core": "ask",
       "nix": "github:roshbhatia/ask#provider-fx",
       "brew": "ask-provider-fx",
       "binary": "ask-provider-fx",
+      "runtime_note": "This adapter calls the Vercel coding agent from `vercel-labs/fx`. Install and authenticate that CLI before use. Homebrew’s `fx` formula is a different JSON viewer. The Nix package includes the coding agent. Run `ask provider validate` to check the installation.",
+      "manifest_path": "share/ask/providers/fx/provider.yaml",
       "dependencies": [],
-      "runtime_note": "This adapter calls the Vercel coding agent from `vercel-labs/fx`. Install and authenticate that CLI before use. Homebrew\u2019s `fx` formula is a different JSON viewer. The Nix package includes the coding agent. Run `ask provider validate` to check the installation.",
-      "manifest_path": "share/ask/providers/fx/provider.yaml"
+      "summary": "fx coding agent CLI"
     },
     {
       "name": "goose",
-      "summary": "Replay an offline token parser review with goose",
-      "replay": true,
       "core": "ask",
       "nix": "github:roshbhatia/ask#provider-goose",
       "brew": "ask-provider-goose",
       "binary": "ask-provider-goose",
       "runtime_note": "This adapter calls `goose`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
-      "manifest_path": "share/ask/providers/goose/provider.yaml"
+      "manifest_path": "share/ask/providers/goose/provider.yaml",
+      "summary": "Goose CLI"
     },
     {
       "name": "hermes",
-      "summary": "Replay an offline token parser review with hermes",
-      "replay": true,
       "core": "ask",
       "nix": "github:roshbhatia/ask?dir=extras#provider-hermes",
       "brew": "ask-provider-hermes",
       "binary": "ask-provider-hermes",
       "runtime_note": "This adapter calls `hermes`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
-      "manifest_path": "share/ask/providers/hermes/provider.yaml"
+      "manifest_path": "share/ask/providers/hermes/provider.yaml",
+      "summary": "Hermes Agent CLI"
     },
     {
       "name": "opencode",
-      "summary": "Replay an offline token parser review with opencode",
-      "replay": true,
       "core": "ask",
       "nix": "github:roshbhatia/ask#provider-opencode",
       "brew": "ask-provider-opencode",
       "binary": "ask-provider-opencode",
+      "runtime_note": "This adapter calls `opencode`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
+      "manifest_path": "share/ask/providers/opencode/provider.yaml",
       "dependencies": [
         "opencode"
       ],
-      "runtime_note": "This adapter calls `opencode`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
-      "manifest_path": "share/ask/providers/opencode/provider.yaml"
+      "summary": "opencode CLI"
     },
     {
       "name": "pi",
-      "summary": "Replay an offline token parser review with pi",
-      "replay": true,
       "core": "ask",
       "nix": "github:roshbhatia/ask#provider-pi",
       "brew": "ask-provider-pi",
       "binary": "ask-provider-pi",
       "runtime_note": "This adapter calls `pi`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
-      "manifest_path": "share/ask/providers/pi/provider.yaml"
+      "manifest_path": "share/ask/providers/pi/provider.yaml",
+      "summary": "pi coding agent CLI"
     }
   ],
   "packages": [
@@ -146,7 +134,7 @@
       "name": "ask-provider-antigravity",
       "kind": "provider",
       "binary": "ask-provider-antigravity",
-      "description": "Replay an offline token parser review with antigravity",
+      "description": "Antigravity CLI",
       "archive": "ask_provider_antigravity_%{version}_%{os}_%{arch}.tar.gz",
       "share": [
         "share/ask/providers/antigravity/provider.yaml"
@@ -157,7 +145,7 @@
       "name": "ask-provider-claude",
       "kind": "provider",
       "binary": "ask-provider-claude",
-      "description": "Replay an offline token parser review with claude",
+      "description": "Claude Code",
       "archive": "ask_provider_claude_%{version}_%{os}_%{arch}.tar.gz",
       "share": [
         "share/ask/providers/claude/provider.yaml"
@@ -168,7 +156,7 @@
       "name": "ask-provider-codex",
       "kind": "provider",
       "binary": "ask-provider-codex",
-      "description": "Replay an offline token parser review with codex",
+      "description": "Codex CLI",
       "archive": "ask_provider_codex_%{version}_%{os}_%{arch}.tar.gz",
       "share": [
         "share/ask/providers/codex/provider.yaml"
@@ -179,7 +167,7 @@
       "name": "ask-provider-copilot",
       "kind": "provider",
       "binary": "ask-provider-copilot",
-      "description": "Replay an offline token parser review with copilot",
+      "description": "GitHub Copilot CLI",
       "archive": "ask_provider_copilot_%{version}_%{os}_%{arch}.tar.gz",
       "share": [
         "share/ask/providers/copilot/provider.yaml"
@@ -190,7 +178,7 @@
       "name": "ask-provider-crush",
       "kind": "provider",
       "binary": "ask-provider-crush",
-      "description": "Replay an offline token parser review with crush",
+      "description": "Crush CLI",
       "archive": "ask_provider_crush_%{version}_%{os}_%{arch}.tar.gz",
       "share": [
         "share/ask/providers/crush/provider.yaml"
@@ -204,7 +192,7 @@
       "name": "ask-provider-cursor",
       "kind": "provider",
       "binary": "ask-provider-cursor",
-      "description": "Replay an offline token parser review with cursor",
+      "description": "Cursor Agent CLI",
       "archive": "ask_provider_cursor_%{version}_%{os}_%{arch}.tar.gz",
       "share": [
         "share/ask/providers/cursor/provider.yaml"
@@ -215,7 +203,7 @@
       "name": "ask-provider-devin",
       "kind": "provider",
       "binary": "ask-provider-devin",
-      "description": "Replay an offline token parser review with devin",
+      "description": "Devin CLI",
       "archive": "ask_provider_devin_%{version}_%{os}_%{arch}.tar.gz",
       "share": [
         "share/ask/providers/devin/provider.yaml"
@@ -226,7 +214,7 @@
       "name": "ask-provider-fx",
       "kind": "provider",
       "binary": "ask-provider-fx",
-      "description": "Replay an offline token parser review with fx",
+      "description": "fx coding agent CLI",
       "archive": "ask_provider_fx_%{version}_%{os}_%{arch}.tar.gz",
       "share": [
         "share/ask/providers/fx/provider.yaml"
@@ -238,7 +226,7 @@
       "name": "ask-provider-goose",
       "kind": "provider",
       "binary": "ask-provider-goose",
-      "description": "Replay an offline token parser review with goose",
+      "description": "Goose CLI",
       "archive": "ask_provider_goose_%{version}_%{os}_%{arch}.tar.gz",
       "share": [
         "share/ask/providers/goose/provider.yaml"
@@ -249,7 +237,7 @@
       "name": "ask-provider-hermes",
       "kind": "provider",
       "binary": "ask-provider-hermes",
-      "description": "Replay an offline token parser review with hermes",
+      "description": "Hermes Agent CLI",
       "archive": "ask_provider_hermes_%{version}_%{os}_%{arch}.tar.gz",
       "share": [
         "share/ask/providers/hermes/provider.yaml"
@@ -260,7 +248,7 @@
       "name": "ask-provider-opencode",
       "kind": "provider",
       "binary": "ask-provider-opencode",
-      "description": "Replay an offline token parser review with opencode",
+      "description": "opencode CLI",
       "archive": "ask_provider_opencode_%{version}_%{os}_%{arch}.tar.gz",
       "share": [
         "share/ask/providers/opencode/provider.yaml"
@@ -274,7 +262,7 @@
       "name": "ask-provider-pi",
       "kind": "provider",
       "binary": "ask-provider-pi",
-      "description": "Replay an offline token parser review with pi",
+      "description": "pi coding agent CLI",
       "archive": "ask_provider_pi_%{version}_%{os}_%{arch}.tar.gz",
       "share": [
         "share/ask/providers/pi/provider.yaml"

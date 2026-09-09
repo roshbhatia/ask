@@ -8,7 +8,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: DeterminateSystems/nix-installer-action@v22
-      - run: python3 hack/extra-docs.py --check
-      - run: python3 hack/extra-demos.py --check
-      - run: python3 hack/test_update_flakes.py
-      - run: python3 hack/release-extras.py --check
+      - run: nix develop -c bash hack/extra-demos.sh --check
+      - run: nix develop -c uv run --script hack/test_update_flakes.py
+      - run: nix develop -c uv run --script hack/release-extras.py --check

@@ -1,19 +1,28 @@
-Require bash
+Require ask
+Require git
+
 Set Shell "bash"
 Set Theme "Catppuccin Macchiato"
-Set FontSize 17
-Set Width 1200
-Set Height 680
-Set Framerate 10
-Set TypingSpeed 15ms
-Set WaitTimeout 120s
-Output "extras/devin/demo.gif"
+Set FontSize 18
+Set Width 1440
+Set Height 900
+Set Padding 24
+Set Framerate 20
+Set TypingSpeed 65ms
+Set WaitTimeout 330s
+
 Hide
 Type "export PS1='$ '; clear"
 Enter
-Sleep 300ms
 Show
-Type "bash extras/devin/demo.sh"
+Type "git show --stat --oneline HEAD"
 Enter
-Wait+Screen /Demo complete/
-Sleep 2s
+Wait+Screen /validate core and provider release archives/
+Sleep 8s
+Type "git show HEAD | ask --timeout 5m 'Explain the archive check fix in four sentences. Cite the changed file.' && echo 'Review complete'"
+Enter
+Wait+Screen /which agent\?/
+Sleep 5s
+Enter
+Wait+Screen /(?m)^Review complete/
+Sleep 20s

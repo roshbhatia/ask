@@ -1,11 +1,5 @@
 {
   "name": "antigravity",
-  "summary": "Replay an offline token parser review with antigravity",
-  "replay": true,
-  "core": "ask",
-  "nix": "github:roshbhatia/ask#provider-antigravity",
-  "brew": "ask-provider-antigravity",
-  "binary": "ask-provider-antigravity",
-  "runtime_note": "This adapter calls `agy`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
-  "manifest_path": "share/ask/providers/antigravity/provider.yaml"
+  "summary": "Select antigravity in Ask and explain the Changes release archive fix",
+  "status": "pending"
 }

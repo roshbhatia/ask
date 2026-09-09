@@ -1,0 +1,9 @@
+{
+  "name": "hermes",
+  "core": "ask",
+  "nix": "github:roshbhatia/ask?dir=extras#provider-hermes",
+  "brew": "ask-provider-hermes",
+  "binary": "ask-provider-hermes",
+  "runtime_note": "This adapter calls `hermes`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
+  "manifest_path": "share/ask/providers/hermes/provider.yaml"
+}

@@ -1,8 +1,6 @@
 # codex
 
-Replay an offline token parser review with codex.
-
-The demo replays an offline response fixture. It does not contact a model or claim a new agent run.
+Codex CLI.
 
 ## Install
 
@@ -11,15 +9,15 @@ brew install roshbhatia/tap/ask-provider-codex
 nix profile add 'github:roshbhatia/ask#provider-codex'
 ```
 
-Install the core utility separately, or select its all-provider bundle. Runtime tools still need their own credentials.
+Install the core utility separately, or select its all-provider bundle.
 
 This adapter calls `codex`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.
 
 ## Demo
 
-![Replay an offline token parser review with codex](demo.gif)
+![Select codex in Ask and explain the Changes release archive fix](../../docs/ask.gif)
 
-[Tape source](demo.tape) · [Task script](demo.sh)
+Select codex in Ask and explain the Changes release archive fix. [Tape source](demo.tape).
 
-Run `nix develop -c bash extras/codex/demo.sh` to run the task without recording.
-Run `nix develop -c python3 hack/extra-demos.py codex` to record it.
+Run `nix develop -c bash extras/codex/demo.sh` with the real runtime installed and authenticated.
+Add `--record` to capture the interactive session. This invokes the real service; output and timing vary.

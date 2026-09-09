@@ -15,7 +15,7 @@ if sed '/# BEGIN GENERATED EXTRAS/,/# END GENERATED EXTRAS/d' .goreleaser.yaml |
   printf 'Release configuration has product knowledge outside its generated package catalog.\n' >&2
   exit 1
 fi
-python3 hack/release-extras.py --check
+uv --no-cache run --offline --no-python-downloads --script hack/release-extras.py --check
 
 if find cmd -mindepth 2 -maxdepth 2 -type f -path 'cmd/ask-provider-*/*' -print -quit | grep -q .; then
   printf 'A central provider adapter still exists under cmd/.\n' >&2
