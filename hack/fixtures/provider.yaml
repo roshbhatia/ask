@@ -1,13 +1,13 @@
 version: provider/v1
-name: demo
+name: recorded-review
 description: Screenshot fixture
-command: [ask-provider-demo]
+command: [ask-provider-recorded-review]
 actions:
   inference.generate:
     description: Generate a deterministic demonstration
   provider.validate:
     description: Validate the demonstration provider
 requires:
-  commands: [ask-provider-demo]
+  commands: [ask-provider-recorded-review]
 defaults:
   timeout: 30s

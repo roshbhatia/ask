@@ -1,0 +1,11 @@
+{
+  "name": "claude",
+  "summary": "Replay an offline token parser review with claude",
+  "replay": true,
+  "core": "ask",
+  "nix": "github:roshbhatia/ask#provider-claude",
+  "brew": "ask-provider-claude",
+  "binary": "ask-provider-claude",
+  "runtime_note": "This adapter calls `claude`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
+  "manifest_path": "share/ask/providers/claude/provider.yaml"
+}

@@ -10,6 +10,20 @@ before:
     - sh -c 'go run ./cmd/ask completion zsh > completions/ask.zsh'
 
 builds:
+  # BEGIN GENERATED EXTRAS BUILDS
+  - {"id": "ask-provider-antigravity", "main": "./extras/antigravity", "binary": "ask-provider-antigravity", "env": ["CGO_ENABLED=0"], "flags": ["-trimpath"], "goos": ["darwin", "linux"], "goarch": ["amd64", "arm64"], "ignore": [{"goos": "darwin", "goarch": "amd64"}]}
+  - {"id": "ask-provider-claude", "main": "./extras/claude", "binary": "ask-provider-claude", "env": ["CGO_ENABLED=0"], "flags": ["-trimpath"], "goos": ["darwin", "linux"], "goarch": ["amd64", "arm64"], "ignore": [{"goos": "darwin", "goarch": "amd64"}]}
+  - {"id": "ask-provider-codex", "main": "./extras/codex", "binary": "ask-provider-codex", "env": ["CGO_ENABLED=0"], "flags": ["-trimpath"], "goos": ["darwin", "linux"], "goarch": ["amd64", "arm64"], "ignore": [{"goos": "darwin", "goarch": "amd64"}]}
+  - {"id": "ask-provider-copilot", "main": "./extras/copilot", "binary": "ask-provider-copilot", "env": ["CGO_ENABLED=0"], "flags": ["-trimpath"], "goos": ["darwin", "linux"], "goarch": ["amd64", "arm64"], "ignore": [{"goos": "darwin", "goarch": "amd64"}]}
+  - {"id": "ask-provider-crush", "main": "./extras/crush", "binary": "ask-provider-crush", "env": ["CGO_ENABLED=0"], "flags": ["-trimpath"], "goos": ["darwin", "linux"], "goarch": ["amd64", "arm64"], "ignore": [{"goos": "darwin", "goarch": "amd64"}]}
+  - {"id": "ask-provider-cursor", "main": "./extras/cursor", "binary": "ask-provider-cursor", "env": ["CGO_ENABLED=0"], "flags": ["-trimpath"], "goos": ["darwin", "linux"], "goarch": ["amd64", "arm64"], "ignore": [{"goos": "darwin", "goarch": "amd64"}]}
+  - {"id": "ask-provider-devin", "main": "./extras/devin", "binary": "ask-provider-devin", "env": ["CGO_ENABLED=0"], "flags": ["-trimpath"], "goos": ["darwin", "linux"], "goarch": ["amd64", "arm64"], "ignore": [{"goos": "darwin", "goarch": "amd64"}]}
+  - {"id": "ask-provider-fx", "main": "./extras/fx", "binary": "ask-provider-fx", "env": ["CGO_ENABLED=0"], "flags": ["-trimpath"], "goos": ["darwin", "linux"], "goarch": ["amd64", "arm64"], "ignore": [{"goos": "darwin", "goarch": "amd64"}]}
+  - {"id": "ask-provider-goose", "main": "./extras/goose", "binary": "ask-provider-goose", "env": ["CGO_ENABLED=0"], "flags": ["-trimpath"], "goos": ["darwin", "linux"], "goarch": ["amd64", "arm64"], "ignore": [{"goos": "darwin", "goarch": "amd64"}]}
+  - {"id": "ask-provider-hermes", "main": ".", "binary": "ask-provider-hermes", "env": ["CGO_ENABLED=0"], "flags": ["-trimpath"], "goos": ["darwin", "linux"], "goarch": ["amd64", "arm64"], "ignore": [{"goos": "darwin", "goarch": "amd64"}], "dir": "extras/hermes"}
+  - {"id": "ask-provider-opencode", "main": "./extras/opencode", "binary": "ask-provider-opencode", "env": ["CGO_ENABLED=0"], "flags": ["-trimpath"], "goos": ["darwin", "linux"], "goarch": ["amd64", "arm64"], "ignore": [{"goos": "darwin", "goarch": "amd64"}]}
+  - {"id": "ask-provider-pi", "main": "./extras/pi", "binary": "ask-provider-pi", "env": ["CGO_ENABLED=0"], "flags": ["-trimpath"], "goos": ["darwin", "linux"], "goarch": ["amd64", "arm64"], "ignore": [{"goos": "darwin", "goarch": "amd64"}]}
+  # END GENERATED EXTRAS
   - id: ask
     main: ./cmd/ask
     binary: ask
@@ -25,6 +39,20 @@ builds:
       - goos: darwin
         goarch: amd64
 archives:
+  # BEGIN GENERATED EXTRAS ARCHIVES
+  - {"id": "provider-antigravity", "ids": ["ask-provider-antigravity"], "formats": ["tar.gz"], "name_template": "ask_provider_antigravity_{{ .Version }}_{{ .Os }}_{{ .Arch }}", "files": ["LICENSE", {"src": "extras/antigravity/README.md", "dst": "README.md"}, {"src": "extras/antigravity/provider.yaml", "dst": "share/ask/providers/antigravity/provider.yaml"}]}
+  - {"id": "provider-claude", "ids": ["ask-provider-claude"], "formats": ["tar.gz"], "name_template": "ask_provider_claude_{{ .Version }}_{{ .Os }}_{{ .Arch }}", "files": ["LICENSE", {"src": "extras/claude/README.md", "dst": "README.md"}, {"src": "extras/claude/provider.yaml", "dst": "share/ask/providers/claude/provider.yaml"}]}
+  - {"id": "provider-codex", "ids": ["ask-provider-codex"], "formats": ["tar.gz"], "name_template": "ask_provider_codex_{{ .Version }}_{{ .Os }}_{{ .Arch }}", "files": ["LICENSE", {"src": "extras/codex/README.md", "dst": "README.md"}, {"src": "extras/codex/provider.yaml", "dst": "share/ask/providers/codex/provider.yaml"}]}
+  - {"id": "provider-copilot", "ids": ["ask-provider-copilot"], "formats": ["tar.gz"], "name_template": "ask_provider_copilot_{{ .Version }}_{{ .Os }}_{{ .Arch }}", "files": ["LICENSE", {"src": "extras/copilot/README.md", "dst": "README.md"}, {"src": "extras/copilot/provider.yaml", "dst": "share/ask/providers/copilot/provider.yaml"}]}
+  - {"id": "provider-crush", "ids": ["ask-provider-crush"], "formats": ["tar.gz"], "name_template": "ask_provider_crush_{{ .Version }}_{{ .Os }}_{{ .Arch }}", "files": ["LICENSE", {"src": "extras/crush/README.md", "dst": "README.md"}, {"src": "extras/crush/provider.yaml", "dst": "share/ask/providers/crush/provider.yaml"}]}
+  - {"id": "provider-cursor", "ids": ["ask-provider-cursor"], "formats": ["tar.gz"], "name_template": "ask_provider_cursor_{{ .Version }}_{{ .Os }}_{{ .Arch }}", "files": ["LICENSE", {"src": "extras/cursor/README.md", "dst": "README.md"}, {"src": "extras/cursor/provider.yaml", "dst": "share/ask/providers/cursor/provider.yaml"}]}
+  - {"id": "provider-devin", "ids": ["ask-provider-devin"], "formats": ["tar.gz"], "name_template": "ask_provider_devin_{{ .Version }}_{{ .Os }}_{{ .Arch }}", "files": ["LICENSE", {"src": "extras/devin/README.md", "dst": "README.md"}, {"src": "extras/devin/provider.yaml", "dst": "share/ask/providers/devin/provider.yaml"}]}
+  - {"id": "provider-fx", "ids": ["ask-provider-fx"], "formats": ["tar.gz"], "name_template": "ask_provider_fx_{{ .Version }}_{{ .Os }}_{{ .Arch }}", "files": ["LICENSE", {"src": "extras/fx/README.md", "dst": "README.md"}, {"src": "extras/fx/provider.yaml", "dst": "share/ask/providers/fx/provider.yaml"}]}
+  - {"id": "provider-goose", "ids": ["ask-provider-goose"], "formats": ["tar.gz"], "name_template": "ask_provider_goose_{{ .Version }}_{{ .Os }}_{{ .Arch }}", "files": ["LICENSE", {"src": "extras/goose/README.md", "dst": "README.md"}, {"src": "extras/goose/provider.yaml", "dst": "share/ask/providers/goose/provider.yaml"}]}
+  - {"id": "provider-hermes", "ids": ["ask-provider-hermes"], "formats": ["tar.gz"], "name_template": "ask_provider_hermes_{{ .Version }}_{{ .Os }}_{{ .Arch }}", "files": ["LICENSE", {"src": "extras/hermes/README.md", "dst": "README.md"}, {"src": "extras/hermes/provider.yaml", "dst": "share/ask/providers/hermes/provider.yaml"}]}
+  - {"id": "provider-opencode", "ids": ["ask-provider-opencode"], "formats": ["tar.gz"], "name_template": "ask_provider_opencode_{{ .Version }}_{{ .Os }}_{{ .Arch }}", "files": ["LICENSE", {"src": "extras/opencode/README.md", "dst": "README.md"}, {"src": "extras/opencode/provider.yaml", "dst": "share/ask/providers/opencode/provider.yaml"}]}
+  - {"id": "provider-pi", "ids": ["ask-provider-pi"], "formats": ["tar.gz"], "name_template": "ask_provider_pi_{{ .Version }}_{{ .Os }}_{{ .Arch }}", "files": ["LICENSE", {"src": "extras/pi/README.md", "dst": "README.md"}, {"src": "extras/pi/provider.yaml", "dst": "share/ask/providers/pi/provider.yaml"}]}
+  # END GENERATED EXTRAS
   - id: ask
     ids: [ask]
     formats: [tar.gz]
@@ -45,3 +73,7 @@ checksum:
 
 changelog:
   use: github-native
+
+release:
+  extra_files:
+    - glob: package-index.json

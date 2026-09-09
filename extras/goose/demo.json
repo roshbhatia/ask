@@ -1,0 +1,11 @@
+{
+  "name": "goose",
+  "summary": "Replay an offline token parser review with goose",
+  "replay": true,
+  "core": "ask",
+  "nix": "github:roshbhatia/ask#provider-goose",
+  "brew": "ask-provider-goose",
+  "binary": "ask-provider-goose",
+  "runtime_note": "This adapter calls `goose`. Install and authenticate that CLI before use. The Nix package includes its runtime. Run `ask provider validate` to check the installation.",
+  "manifest_path": "share/ask/providers/goose/provider.yaml"
+}

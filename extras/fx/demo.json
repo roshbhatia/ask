@@ -1,0 +1,12 @@
+{
+  "name": "fx",
+  "summary": "Replay an offline token parser review with fx",
+  "replay": true,
+  "core": "ask",
+  "nix": "github:roshbhatia/ask#provider-fx",
+  "brew": "ask-provider-fx",
+  "binary": "ask-provider-fx",
+  "dependencies": [],
+  "runtime_note": "This adapter calls the Vercel coding agent from `vercel-labs/fx`. Install and authenticate that CLI before use. Homebrew\u2019s `fx` formula is a different JSON viewer. The Nix package includes the coding agent. Run `ask provider validate` to check the installation.",
+  "manifest_path": "share/ask/providers/fx/provider.yaml"
+}

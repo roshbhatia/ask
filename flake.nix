@@ -62,7 +62,7 @@
             inherit system;
             config.allowUnfree = true;
           };
-          version = "0.7.0";
+          version = "0.7.1";
           vendorHash = "sha256-4L/df1l1J7G8vZD8x85XM/uZGQ/tdidxI9ZptumoJxY=";
           buildGo =
             {
@@ -80,6 +80,7 @@
               nativeCheckInputs = lib.optionals check [
                 pkgs.cue
                 pkgs.ripgrep
+                pkgs.python3
               ];
               doCheck = check;
               checkPhase = lib.optionalString check ''
@@ -192,7 +193,13 @@
         {
           default = packages.ask;
           core-neutral =
-            pkgs.runCommand "ask-provider-neutral-source" { nativeBuildInputs = [ pkgs.ripgrep ]; }
+            pkgs.runCommand "ask-provider-neutral-source"
+              {
+                nativeBuildInputs = [
+                  pkgs.ripgrep
+                  pkgs.python3
+                ];
+              }
               ''
                 cd ${./.}
                 ${pkgs.bash}/bin/bash ./hack/audit-provider-neutral.sh
@@ -304,6 +311,9 @@
         {
           default = pkgs.mkShellNoCC {
             packages = [
+              (pkgs.python3.withPackages (ps: [ ps.pyyaml ]))
+              pkgs.ffmpeg
+              pkgs.git
               pkgs.go
               pkgs.gopls
               pkgs.gotools

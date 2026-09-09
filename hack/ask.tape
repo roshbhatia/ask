@@ -11,7 +11,12 @@ Set TypingSpeed 35ms
 
 Sleep 1s
 
-Type "ask -p demo 'Review the token parser change and summarize the evidence.'"
+Type "ask -p recorded-review 'Review the token parser change and summarize the evidence.'"
 Enter
-Wait+Screen /Focused parser tests pass/
+Wait+Screen /protect session lookup/
 Sleep 3s
+
+Type "go test -v ./internal/auth"
+Enter
+Wait+Screen /PASS/
+Sleep 2s

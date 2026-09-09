@@ -11,6 +11,9 @@ concurrency:
   group: update-sources
   cancel-in-progress: false
 
+env:
+  GH_TOKEN: ${{ github.token }}
+
 jobs:
   update:
     name: Update locks and open a pull request
@@ -39,10 +42,20 @@ jobs:
         env:
           NIX_CONFIG: "access-tokens = github.com=${{ github.token }}"
         run: |
-          nix flake update
-          while IFS= read -r flake_file; do
-            nix flake update --flake "./${flake_file%/flake.nix}"
-          done < <(find extras -type f -name flake.nix -print | LC_ALL=C sort)
+          python3 -m unittest discover -s hack -p "test_update_flakes.py"
+          python3 "$GITHUB_WORKSPACE/hack/update-flakes.py"
+
+
+      - name: Refresh documentation and demos
+        run: |
+          python3 hack/extra-docs.py
+          if ! python3 hack/extra-demos.py --check; then
+            nix develop --accept-flake-config -c python3 hack/extra-demos.py
+          fi
+          python3 hack/release-extras.py
+          if ! nix develop -c bash hack/screenshots.sh --check; then
+            nix develop -c bash hack/screenshots.sh
+          fi
 
       - name: Create Pull Request
         id: cpr
