@@ -62,7 +62,7 @@
             inherit system;
             config.allowUnfree = true;
           };
-          version = "0.7.1";
+          version = "0.7.2";
           vendorHash = "sha256-4L/df1l1J7G8vZD8x85XM/uZGQ/tdidxI9ZptumoJxY=";
           buildGo =
             {
