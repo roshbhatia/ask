@@ -85,19 +85,21 @@ A prompt template can name its default schema template.
 var version = "dev"
 
 type options struct {
-	prompt         string
-	json           bool
-	spec           string
-	model          string
-	light          bool
-	provider       string
-	replay         bool
-	last           bool
-	quiet          bool
-	timeout        time.Duration
-	template       string
-	vars           []string
-	schemaTemplate string
+	prompt          string
+	json            bool
+	spec            string
+	model           string
+	light           bool
+	provider        string
+	replay          bool
+	last            bool
+	quiet           bool
+	envelope        bool
+	noClarification bool
+	timeout         time.Duration
+	template        string
+	vars            []string
+	schemaTemplate  string
 
 	showInput  bool
 	showPrompt bool
@@ -189,6 +191,7 @@ func command(opts *options) *cobra.Command {
 
 	flags := cmd.Flags()
 	flags.SetInterspersed(false)
+	flags.BoolVar(&opts.envelope, "envelope", false, "emit a JSON envelope containing prompt, input, answer, provider and model")
 	flags.BoolVarP(&opts.json, "json", "j", false, "answer in JSON, shape unspecified")
 	flags.StringVarP(&opts.spec, "schema", "s", "", "answer in JSON, in this shape: a field spec such as 'name:string, tags:[]string, count:int?', where a trailing question mark makes a field optional and a bar makes an enum, or @path to a JSON Schema file")
 	flags.StringVarP(&opts.model, "model", "m", "", "which model to run; press tab for the ones this agent names")
@@ -253,6 +256,8 @@ func command(opts *options) *cobra.Command {
 	cmd.AddCommand(promptCommand())
 	cmd.AddCommand(providerCommand())
 	cmd.AddCommand(schemaCommand())
+	cmd.AddCommand(evaluateCommand())
+	cmd.AddCommand(rubricCommand())
 
 	return cmd
 }
@@ -282,7 +287,12 @@ func generateCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			rubricSchema, err := templates.RubricSchema()
+			if err != nil {
+				return err
+			}
 			generatedFiles := map[string][]byte{
+				filepath.Join(root, "schema", "rubric-template.schema.json"): rubricSchema,
 				filepath.Join(root, "schema", "config.schema.json"):          configSchema,
 				filepath.Join(root, "schema", "prompt-template.schema.json"): promptSchema,
 				filepath.Join(root, "schema", "provider.schema.json"):        providerSchema,
@@ -512,7 +522,7 @@ func providerCommand() *cobra.Command {
 		},
 	}
 	validate.Flags().BoolVar(&validateJSON, "json", false, "print JSON")
-	cmd.AddCommand(list, validate)
+	cmd.AddCommand(list, validate, capabilitiesCommand())
 	return cmd
 }
 
@@ -693,6 +703,14 @@ func completionValuesCommand() *cobra.Command {
 					context = args[1]
 				}
 				values = modelNames(completionOptions(context))
+			case "evaluation-models":
+				context := ""
+				if len(args) == 2 {
+					context = args[1]
+				}
+				values = evaluationModelNames(completionOptions(context).provider)
+			case "rubric-templates":
+				values = templateNames("rubric")
 			case "prompt-templates":
 				values = templateNames("prompt")
 			case "schema-templates":
@@ -763,6 +781,10 @@ func addCompletionFlags(spec *completion.Command, cmd *cobra.Command, executable
 			metadata.Values = config.Keys()
 		case "set-config":
 			metadata.Values = pairs("")
+		case "input":
+			metadata.Values = []string{"auto", "text", "json"}
+		case "method":
+			metadata.Values = []string{"auto", "native", "structured"}
 		case "timeout":
 			metadata.Values = []string{"30s", "2m", "10m", "30m"}
 		}
@@ -824,6 +846,16 @@ func completionOptions(context string) options {
 }
 
 func flagCompletionKind(commandPath, flagName string) string {
+	if commandPath == "evaluate" {
+		switch flagName {
+		case "provider":
+			return "providers"
+		case "model":
+			return "evaluation-models"
+		case "rubric":
+			return "rubric-templates"
+		}
+	}
 	if commandPath == "prompt save" {
 		switch flagName {
 		case "schema":
@@ -857,8 +889,10 @@ func flagCompletionKind(commandPath, flagName string) string {
 
 func argumentCompletionKind(commandPath string) string {
 	switch commandPath {
-	case "provider validate":
+	case "provider validate", "provider capabilities":
 		return "providers"
+	case "rubric show":
+		return "rubric-templates"
 	case "prompt show":
 		return "prompt-templates"
 	case "schema show":
@@ -1017,7 +1051,13 @@ func chosen(opts options) (provider.Provider, error) {
 	if err != nil {
 		return nil, err
 	}
-	picked, err := ui.Pick(known)
+	generators := known[:0]
+	for _, info := range known {
+		if info.Supports(provider.ActionGenerate) {
+			generators = append(generators, info)
+		}
+	}
+	picked, err := ui.Pick(generators)
 	if err != nil {
 		return nil, err
 	}
@@ -1194,7 +1234,15 @@ func withPins(opts options, pinned templates.Prompt) options {
 func once(req provider.Request, opts options, agent provider.Provider) (*provider.Result, error) {
 	ctx, stop := context.WithTimeout(context.Background(), opts.timeout)
 	defer stop()
+	return onceContext(ctx, req, opts, agent)
+}
 
+func onceContext(ctx context.Context, req provider.Request, opts options, agent provider.Provider) (*provider.Result, error) {
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	events, err := agent.Run(ctx, req)
 	if err != nil {
 		return nil, err
@@ -1212,6 +1260,9 @@ func once(req provider.Request, opts options, agent provider.Provider) (*provide
 		result = ui.Drain(events, os.Stderr)
 	}
 
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if result == nil {
 		return nil, errors.New("the run ended without an answer")
 	}
@@ -1224,10 +1275,19 @@ func once(req provider.Request, opts options, agent provider.Provider) (*provide
 // converse runs the agent until the answer fits, carrying back either a reply to
 // its question or the reason its answer was rejected.
 func converse(req provider.Request, strict map[string]any, opts options, agent provider.Provider) (*provider.Result, error) {
+	if opts.timeout <= 0 {
+		return nil, errors.New("timeout must be positive")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), opts.timeout)
+	defer cancel()
+	return converseContext(ctx, req, strict, opts, agent, rounds)
+}
+
+func converseContext(ctx context.Context, req provider.Request, strict map[string]any, opts options, agent provider.Provider, attempts int) (*provider.Result, error) {
 	human := !opts.quiet && terminal.IsTTY(os.Stderr)
 
 	for round := 1; ; round++ {
-		result, err := once(req, opts, agent)
+		result, err := onceContext(ctx, req, opts, agent)
 		if err != nil {
 			return nil, err
 		}
@@ -1235,8 +1295,8 @@ func converse(req provider.Request, strict map[string]any, opts options, agent p
 			return result, nil
 		}
 
-		if question := schema.Question(result.Structured); question != "" {
-			if !human || round == rounds {
+		if question := schema.Question(result.Structured); question != "" && !opts.noClarification {
+			if !human || round == attempts {
 				return nil, asked{question}
 			}
 			reply, err := ui.Answer(question)
@@ -1254,7 +1314,7 @@ func converse(req provider.Request, strict map[string]any, opts options, agent p
 		if wrong == nil {
 			return result, nil
 		}
-		if round == rounds {
+		if round == attempts {
 			return nil, fmt.Errorf("%s: %s", agent.Name(), wrong)
 		}
 		req.Prompt, err = templates.WithRejectedAnswer(req.Prompt, wrong.Error())
@@ -1379,6 +1439,14 @@ func run(opts options) error {
 		Schema: loose,
 		Dir:    here,
 	}
+	if info, found, err := provider.Lookup(agent.Name()); err != nil {
+		return err
+	} else if found {
+		req.Model, err = info.ResolveModel(req.Model)
+		if err != nil {
+			return err
+		}
+	}
 	if mayAsk {
 		req.Prompt, err = templates.WithClarificationRule(req.Prompt, schema.Rule)
 		if err != nil {
@@ -1398,6 +1466,13 @@ func run(opts options) error {
 	if err := store.SaveOutput(out); err != nil {
 		return err
 	}
+	if opts.envelope {
+		var value any = string(out)
+		if shape != nil {
+			value = result.Structured
+		}
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{"version": "ask.result/v1", "prompt": prompt, "input": string(input), "answer": value, "provider": agent.Name(), "model": req.Model})
+	}
 	fmt.Println(string(out))
 	return nil
 }
@@ -1409,7 +1484,7 @@ func main() {
 	switch {
 	case err == nil:
 		return
-	case errors.Is(err, ui.ErrStopped):
+	case errors.Is(err, ui.ErrStopped), errors.Is(err, context.Canceled):
 		os.Exit(130)
 	case errors.As(err, &question):
 		fmt.Fprintln(os.Stderr, called()+": "+question.Error())

@@ -1,6 +1,18 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$defs": {
+    "Evaluation": {
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "Provider": {
       "properties": {
         "default": {
@@ -12,6 +24,9 @@
     }
   },
   "properties": {
+    "evaluation": {
+      "$ref": "#/$defs/Evaluation"
+    },
     "version": {
       "type": "string",
       "enum": [

@@ -18,17 +18,25 @@ import (
 )
 
 const (
-	ProviderDefault = "provider.default"
-	Version         = "ask.config/v1"
+	ProviderDefault    = "provider.default"
+	EvaluationProvider = "evaluation.provider"
+	EvaluationModel    = "evaluation.model"
+	Version            = "ask.config/v1"
 )
 
 type Provider struct {
 	Default string `json:"default,omitempty" yaml:"default,omitempty"`
 }
 
+type Evaluation struct {
+	Provider string `json:"provider,omitempty" yaml:"provider,omitempty"`
+	Model    string `json:"model,omitempty" yaml:"model,omitempty"`
+}
+
 type File struct {
-	Version  string   `json:"version" yaml:"version" jsonschema:"enum=ask.config/v1"`
-	Provider Provider `json:"provider,omitempty" yaml:"provider,omitempty"`
+	Evaluation Evaluation `json:"evaluation,omitempty" yaml:"evaluation,omitempty"`
+	Version    string     `json:"version" yaml:"version" jsonschema:"enum=ask.config/v1"`
+	Provider   Provider   `json:"provider,omitempty" yaml:"provider,omitempty"`
 }
 
 type Setting struct {
@@ -38,28 +46,29 @@ type Setting struct {
 	Clean  func(string) (string, error)
 }
 
-var settings = []Setting{{
-	Key:    ProviderDefault,
-	Help:   "the agent to run when no -p and no ASK_PROVIDER say otherwise",
-	Values: provider.Names,
-	Clean: func(value string) (string, error) {
-		one, ok, err := provider.Lookup(value)
+var settings = []Setting{
+	{Key: ProviderDefault, Help: "the agent to run when no -p and no ASK_PROVIDER say otherwise", Values: provider.Names, Clean: cleanProvider},
+	{Key: EvaluationProvider, Help: "provider used for evaluation", Values: provider.Names, Clean: cleanProvider},
+	{Key: EvaluationModel, Help: "model used for evaluation"},
+}
+
+func cleanProvider(value string) (string, error) {
+	one, ok, err := provider.Lookup(value)
+	if err != nil {
+		return "", err
+	}
+	if !ok {
+		known, err := provider.Names()
 		if err != nil {
 			return "", err
 		}
-		if !ok {
-			known, err := provider.Names()
-			if err != nil {
-				return "", err
-			}
-			if len(known) == 0 {
-				return "", fmt.Errorf("provider %q is not installed", value)
-			}
-			return "", fmt.Errorf("unknown provider %q, known: %s", value, strings.Join(known, ", "))
+		if len(known) == 0 {
+			return "", fmt.Errorf("provider %q is not installed", value)
 		}
-		return one.Name, nil
-	},
-}}
+		return "", fmt.Errorf("unknown provider %q, known: %s", value, strings.Join(known, ", "))
+	}
+	return one.Name, nil
+}
 
 func Settings() []Setting { return slices.Clone(settings) }
 
@@ -127,7 +136,7 @@ func Load() (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return map[string]string{ProviderDefault: loaded.Provider.Default}, nil
+	return map[string]string{ProviderDefault: loaded.Provider.Default, EvaluationProvider: loaded.Evaluation.Provider, EvaluationModel: loaded.Evaluation.Model}, nil
 }
 
 func Get(key string) (string, error) {
@@ -162,7 +171,14 @@ func Set(pair string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	loaded.Provider.Default = value
+	switch key {
+	case ProviderDefault:
+		loaded.Provider.Default = value
+	case EvaluationProvider:
+		loaded.Evaluation.Provider = value
+	case EvaluationModel:
+		loaded.Evaluation.Model = value
+	}
 	return key, value, save(loaded)
 }
 

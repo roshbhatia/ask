@@ -685,6 +685,9 @@ func List(kind string) ([]string, error) {
 	if kind == "schema" {
 		dir = SchemaDir()
 	}
+	if kind == "rubric" {
+		dir = RubricDir()
+	}
 	entries, err := os.ReadDir(dir)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Question": {
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "boolean",
+            "choice",
+            "score"
+          ]
+        },
+        "instructions": {
+          "type": "string"
+        },
+        "choices": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "levels": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type",
+        "instructions"
+      ]
+    },
+    "Questions": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Question"
+      },
+      "type": "object"
+    }
+  },
+  "properties": {
+    "version": {
+      "type": "string",
+      "enum": [
+        "ask.rubric/v1"
+      ]
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "description": {
+      "type": "string"
+    },
+    "questions": {
+      "$ref": "#/$defs/Questions"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "version",
+    "name",
+    "questions"
+  ],
+  "title": "Ask evaluation rubric"
+}

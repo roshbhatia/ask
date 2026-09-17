@@ -73,3 +73,29 @@ func TestLegacyPathIgnoresRelativeXDGRoot(t *testing.T) {
 		t.Fatalf("legacyPath() = %q, want %q", got, want)
 	}
 }
+
+func TestEvaluationSettingsRemainIndependent(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("ASK_CONFIG", "")
+	t.Setenv("ASK_PROVIDER_DEFAULT", "writer")
+	t.Setenv("ASK_EVALUATION_PROVIDER", "classifier")
+	t.Setenv("ASK_EVALUATION_MODEL", "small")
+	values, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values[ProviderDefault] != "writer" || values[EvaluationProvider] != "classifier" || values[EvaluationModel] != "small" {
+		t.Fatalf("values=%v", values)
+	}
+	t.Setenv("ASK_EVALUATION_MODEL", "")
+	if _, _, err := Set("evaluation.model=other"); err != nil {
+		t.Fatal(err)
+	}
+	values, err = Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values[ProviderDefault] != "writer" || values[EvaluationProvider] != "classifier" || values[EvaluationModel] != "other" {
+		t.Fatalf("values=%v", values)
+	}
+}

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Answer": {
+      "properties": {
+        "value": true,
+        "probability": {
+          "type": "number"
+        },
+        "distribution": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "value"
+      ]
+    }
+  },
+  "properties": {
+    "version": {
+      "type": "string",
+      "enum": [
+        "provider/v1"
+      ]
+    },
+    "answers": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Answer"
+      },
+      "type": "object"
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "version",
+    "answers"
+  ],
+  "title": "Ask provider evaluation-response"
+}

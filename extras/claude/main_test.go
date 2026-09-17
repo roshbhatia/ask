@@ -36,3 +36,10 @@ func TestStructuredExtractsObjectFromFencedAnswer(t *testing.T) {
 		t.Fatalf("got %#v", value)
 	}
 }
+
+func TestScanPreservesFailureReasonWithSuccessSubtype(t *testing.T) {
+	result, err := scan(strings.NewReader(`{"type":"result","subtype":"success","is_error":true,"result":"Spend limit reached"}`), func(core.Event) error { return nil })
+	if err != nil || result == nil || !result.Failed || result.Reason != "Spend limit reached" {
+		t.Fatalf("result=%+v error=%v", result, err)
+	}
+}

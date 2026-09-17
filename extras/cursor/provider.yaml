@@ -7,6 +7,7 @@ actions:
   inference.generate:
     description: Generate an answer with Cursor Agent CLI
     argv:
+      - --input-mode=prompt
       - --model-flag=--model
       - --
       - cursor-agent
@@ -20,7 +21,7 @@ actions:
     argv: [--models, --, cursor-agent, models]
   provider.validate:
     description: Validate the Cursor adapter without model work
-    argv: [--validate, --model-flag=--model, --, cursor-agent]
+    argv: [--validate, --input-mode=prompt, --model-flag=--model, --, cursor-agent]
 requires:
   commands: [cursor-agent]
 defaults:

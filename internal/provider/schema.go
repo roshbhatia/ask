@@ -8,19 +8,19 @@ import (
 	shared "github.com/roshbhatia/go-utils/provider"
 )
 
-// Schema is the provider/v1 manifest schema, byte for byte as provider-spec
-// publishes it. Ask's own rule, that a provider declares both inference.generate
-// and provider.validate, lives in schema/narrow.cue and validateContract.
+// Ask action requirements live in narrow.cue so the shared contract stays unchanged.
 func Schema() ([]byte, error) {
 	return shared.Schema()
 }
 
 func WireSchemas() (map[string][]byte, error) {
 	values := map[string]any{
-		"protocol.event.schema.json":      new(Event),
-		"protocol.models.schema.json":     new(ModelResponse),
-		"protocol.request.schema.json":    new(Envelope),
-		"protocol.validation.schema.json": new(ValidationResponse),
+		"protocol.evaluation-request.schema.json":  new(EvaluationEnvelope),
+		"protocol.evaluation-response.schema.json": new(EvaluationResponse),
+		"protocol.event.schema.json":               new(Event),
+		"protocol.models.schema.json":              new(ModelResponse),
+		"protocol.request.schema.json":             new(Envelope),
+		"protocol.validation.schema.json":          new(ValidationResponse),
 	}
 	result := make(map[string][]byte, len(values))
 	for name, value := range values {

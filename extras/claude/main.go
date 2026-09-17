@@ -188,6 +188,9 @@ func scan(reader io.Reader, output emit) (*core.Result, error) {
 			}
 		case "result":
 			result = &core.Result{Text: event.Result, Structured: event.StructuredOutput, Failed: event.IsError, Reason: event.Subtype}
+			if event.IsError && strings.TrimSpace(event.Result) != "" {
+				result.Reason = strings.TrimSpace(event.Result)
+			}
 		}
 	}
 	if err := scanner.Err(); err != nil {

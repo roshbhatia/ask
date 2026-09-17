@@ -276,6 +276,133 @@ nix flake check
 ./hack/screenshots.sh
 ```
 
+## Typed evaluation
+
+Evaluate stdin with an independently selected provider and model. Existing
+text providers use schema-constrained generation. No specialist model is required.
+
+```bash
+ask --set-config evaluation.provider=local-model
+ask --set-config evaluation.model=light
+
+cat change.txt | ask evaluate \
+  --boolean 'actionable=Does this describe a concrete next action?' \
+  --choice 'kind=What kind of change is this?' \
+  --choices 'kind=fix,feature,maintenance,other' \
+  --score 'impact=How much behavior changes?' \
+  --levels 'impact=none,limited,broad'
+```
+
+`-p` and `-m` override `evaluation.provider` and `evaluation.model`.
+`ASK_EVALUATION_PROVIDER` and `ASK_EVALUATION_MODEL` override the file.
+Generation settings, wrapper names, and `ASK_PROVIDER` do not select an evaluator.
+The `light` and `default` model roles resolve through the selected provider's manifest.
+
+Evaluation writes one `ask.evaluation/v1` JSON document to stdout. Diagnostics go
+to stderr. Valid false answers exit 0; invalid input, invalid answers, provider
+failures, and timeouts exit 1 without a partial result. Use the answer value for
+shell predicates, and enable `pipefail` so an upstream failure remains a failure:
+
+```bash
+set -o pipefail
+ask evaluate --boolean 'actionable=Is a next action identified?' < answer.txt |
+  jq -e '.answers.actionable.value'
+```
+
+`method: structured` returns typed `value` fields without invented probabilities.
+`method: native` preserves provider-supplied probabilities and distributions when
+available. Boolean probability means P(true), not confidence in the chosen answer.
+A native boolean value uses the 0.5 threshold; callers can apply their own threshold
+to `probability`. Scores are numeric positions on the supplied levels, starting at
+zero. The result includes the questions so downstream tools can interpret labels.
+
+`--method auto` prefers the selected provider's declared `inference.evaluate`
+action; otherwise it uses `inference.generate`. `--method native` and
+`--method structured` require that capability. A native failure never silently
+falls back to another method or provider. Inspect support without a model call:
+
+```bash
+ask provider capabilities
+ask provider capabilities local-model
+```
+
+The default evaluation deadline is 30 seconds across provider work and schema
+repairs. `--max-repairs 2` permits two repairs after the initial structured attempt;
+`--max-repairs 0` disables them. Transport errors are not retried automatically.
+Input is buffered to EOF before the provider deadline starts. Generation's
+`--timeout` also spans all schema-repair attempts.
+
+`--input auto` preserves a complete JSON value or treats stdin as text. Malformed
+JSON-looking input fails; use `--input text` when braces are literal prose.
+`--input json` requires JSON. Empty and binary input fail. Arrays remain one shared
+state; Ask does not silently split JSONL or truncate input. Use `jq -s .` to
+explicitly collect JSONL into one array.
+
+### Generate, then evaluate
+
+`--envelope` wraps generation output with its original prompt, input, provider,
+and resolved model. It is separate from `--json`, which requests a JSON answer.
+The normal answer and replay storage retain their existing format.
+
+```bash
+set -o pipefail
+ask -p writer --envelope 'Summarize this change' < change.txt |
+  ask evaluate -p reviewer -m light \
+    --boolean 'faithful=Does the answer accurately summarize the input and follow the prompt?'
+```
+
+Pipe plain answers when only their content matters. Use an envelope when the
+classification depends on the original request. Each stage also works alone.
+
+### Reusable rubrics
+
+A questions file uses stable IDs and explicit criteria:
+
+```json
+{
+  "actionable": {"type": "boolean", "instructions": "Is a next action identified?"},
+  "kind": {
+    "type": "choice",
+    "instructions": "What kind of change is this?",
+    "choices": {"fix": "Corrects existing behavior", "other": "Anything else"}
+  },
+  "impact": {
+    "type": "score",
+    "instructions": "How much behavior changes?",
+    "levels": ["none", "limited", "broad"]
+  }
+}
+```
+
+```bash
+ask evaluate --questions review.json < change.txt
+ask rubric save review review.json
+ask rubric list
+ask rubric show review
+ask evaluate --rubric review < change.txt
+```
+
+Rubrics live beside prompt and schema templates at
+`~/.config/ask/templates/rubrics/NAME.yaml`, with version `ask.rubric/v1`.
+Files, rubrics, and inline questions combine; duplicate IDs and conflicting
+criteria fail before a provider starts. Questions share the same unchanged state.
+Dependent questions need separate calls.
+
+### Evaluation provider contract
+
+An evaluation-only manifest declares `inference.evaluate` and `provider.validate`.
+Generation providers remain compatible. The native action receives one
+`provider/v1` request containing `state`, `questions`, `model`, and `directory`.
+It returns one JSON response with `version`, `answers`, and optional `metadata`.
+Unlike generation, native evaluation does not stream events.
+
+See `schema/protocol.evaluation-request.schema.json` and
+`schema/protocol.evaluation-response.schema.json`. Each answer has a typed `value`.
+Boolean answers may add `probability`; choice and score answers may add
+`distribution`, keyed by their labels. Distributions must cover the supplied
+labels and sum to one. Provider-specific usage and confidence belong in
+`metadata`. An evaluation provider can be packaged independently of Ask core.
+
 ## Command reference
 <!-- BEGIN GENERATED:commands -->
 
@@ -285,6 +412,7 @@ Agents in your shell!
 
 | Option | Description |
 | --- | --- |
+| `--envelope` | emit a JSON envelope containing prompt, input, answer, provider and model |
 | `--get-config` `<value>` | print one setting and exit |
 | `--json`, `-j` | answer in JSON, shape unspecified |
 | `--last`, `-l` | send what the previous command printed, instead of stdin |
@@ -304,6 +432,26 @@ Agents in your shell!
 | `--template`, `-t` `<value>` | use a named prompt template |
 | `--timeout` `<value>` | give up after this long |
 | `--var` `<value>` | set one prompt template variable as NAME=VALUE; repeat as needed |
+
+### `ask evaluate`
+
+Evaluate typed questions against stdin
+
+| Option | Description |
+| --- | --- |
+| `--boolean` `<value>` | ID=question for a boolean judgment; repeatable |
+| `--choice` `<value>` | ID=question for a categorical judgment; repeatable |
+| `--choices` `<value>` | ID=label,label options for a choice question |
+| `--input` `<value>` | stdin format: auto, text, or json |
+| `--levels` `<value>` | ID=low,middle,high ordered levels for a score question |
+| `--max-repairs` `<value>` | maximum structured-output repair attempts; 0 disables repair |
+| `--method` `<value>` | auto, native, or structured; auto prefers advertised native evaluation |
+| `--model`, `-m` `<value>` | evaluation model |
+| `--provider`, `-p` `<value>` | evaluation provider; independent of generation settings |
+| `--questions` `<value>` | JSON file containing named questions |
+| `--rubric`, `-r` `<value>` | saved evaluation rubric |
+| `--score` `<value>` | ID=question for an ordered score; repeatable |
+| `--timeout` `<value>` | total provider deadline including schema repairs |
 
 ### `ask prompt`
 
@@ -333,6 +481,10 @@ Print a prompt template
 
 Inspect external inference providers
 
+### `ask provider capabilities`
+
+Print provider capabilities as JSON without model calls
+
 ### `ask provider list`
 
 List discovered providers
@@ -348,6 +500,22 @@ Validate provider manifests and dependencies
 | Option | Description |
 | --- | --- |
 | `--json` | print JSON |
+
+### `ask rubric`
+
+Manage reusable evaluation questions
+
+### `ask rubric list`
+
+List saved rubrics
+
+### `ask rubric save`
+
+Save questions from a JSON file
+
+### `ask rubric show`
+
+Print rubric questions as JSON
 
 ### `ask schema`
 

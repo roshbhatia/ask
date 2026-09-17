@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/roshbhatia/ask/internal/evaluation"
+
 	shared "github.com/roshbhatia/go-utils/provider"
 	"github.com/roshbhatia/go-utils/xdg"
 
@@ -277,8 +279,10 @@ func Discover() ([]Info, error) {
 	}
 	for _, item := range loaded {
 		manifest := item.Manifest
-		if _, ok := manifest.Actions[ActionGenerate]; !ok {
-			continue
+		if _, generate := manifest.Actions[ActionGenerate]; !generate {
+			if _, evaluate := manifest.Actions[ActionEvaluate]; !evaluate {
+				continue
+			}
 		}
 		result = append(result, Info{
 			Name: manifest.Name, Blurb: manifest.Description, Binary: manifest.Command[0],
@@ -328,6 +332,9 @@ func Find(name string) (Provider, error) {
 	}
 	for _, one := range providers {
 		if name == one.Name {
+			if !one.Supports(ActionGenerate) {
+				return nil, fmt.Errorf("provider %q does not support generation", name)
+			}
 			return one.New(), nil
 		}
 	}
@@ -591,7 +598,11 @@ func loadedForValidation(name string) ([]shared.LoadedManifest, []manifestDiagno
 }
 
 func validateContract(report *shared.ValidationReport, manifest shared.Manifest, manifestPath, workingDirectory string) {
-	for _, action := range []string{ActionGenerate, ActionValidate} {
+	inference := ActionGenerate
+	if _, ok := manifest.Actions[ActionEvaluate]; ok {
+		inference = ActionEvaluate
+	}
+	for _, action := range []string{inference, ActionValidate} {
 		status := shared.CheckOK
 		message := "declared"
 		if _, ok := manifest.Actions[action]; !ok {
@@ -617,7 +628,11 @@ func validateContract(report *shared.ValidationReport, manifest shared.Manifest,
 	for _, action := range actions {
 		status := shared.CheckOK
 		message := "rendered"
-		if _, err := manifest.Render(action, probe); err != nil {
+		var request any = probe
+		if action == ActionEvaluate {
+			request = EvaluationRequest{State: "validation input", Questions: evaluation.Questions{"valid": {Type: "boolean", Instructions: "Is the input valid?"}}, Model: probe.Model, Dir: workingDirectory}
+		}
+		if _, err := manifest.Render(action, request); err != nil {
 			status = shared.CheckFailed
 			message = err.Error()
 		}
