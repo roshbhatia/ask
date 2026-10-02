@@ -1,0 +1,53 @@
+.goreleaser.yaml
+  s_e66529e22f60b7::t_0bf3d6f8f6f942 21,51
+README.md
+  s_e66529e22f60b7::t_78215ce65682dd 554
+extras/README.md
+  s_e66529e22f60b7::t_85fae9dd0dd1ed 38
+extras/flake.nix
+  s_e66529e22f60b7::t_e57ccfe346eec0 35,80
+extras/fm/README.md
+  s_e66529e22f60b7::t_f28311d3868266 1-23
+extras/fm/default.nix
+  s_e66529e22f60b7::t_b3bcb024309bcb 1-8
+extras/fm/demo.json
+  s_e66529e22f60b7::t_45e4eecdb2cfd7 1-5
+extras/fm/demo.sh
+  s_e66529e22f60b7::t_c619bcee2d3f93 1-4
+extras/fm/demo.tape
+  s_e66529e22f60b7::t_a559a773e0ea5e 1-28
+extras/fm/main.go
+  s_e66529e22f60b7::t_6fc2b5358404ba 1-7
+extras/fm/main_test.go
+  s_e66529e22f60b7::t_1c3e6d4fb25f3a 1-124
+extras/fm/package.json
+  s_e66529e22f60b7::t_9370605f57b18b 1-15
+extras/fm/provider.yaml
+  s_e66529e22f60b7::t_1c1ed9f36f22d5 1-27
+extras/package.nix
+  s_e66529e22f60b7::t_751804a2979845 9,22,35
+flake.nix
+  s_e66529e22f60b7::t_f3b81dc9a94b04 130,133-135,172
+hack/docgen/main.go
+  s_e66529e22f60b7::t_e441b9706108ea 15-16
+hack/release-extras.py
+  s_e66529e22f60b7::t_aadb1270089ef6 34-35
+package-index.json
+  s_e66529e22f60b7::t_7ff32aa04906ff 77-92,229-239
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9ed0f460b0d03ba8525ad944b4dce62cacbbf9ea",
+  "prompts": {},
+  "sessions": {
+    "s_e66529e22f60b7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fe61-af23-7a03-8aa8-9faf706aa4eb",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Roshan Bhatia <rshnbhatia@gmail.com>"
+    }
+  }
+}
