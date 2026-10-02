@@ -78,7 +78,15 @@
             export PATH="${packages.full}/bin:${pkgs.jq}/bin:${pkgs.coreutils}/bin"
             mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME"
             test "$(ask provider list --json | jq 'length')" -eq ${toString (builtins.length (builtins.attrNames packages.extras.providers))}
-            ask provider validate
+            ${pkgs.lib.concatMapStringsSep "\n" (
+              name:
+              let
+                package = packages.extras.providers.${name};
+              in
+              pkgs.lib.optionalString (
+                !(package ? providerRuntime) || package.providerRuntime != null
+              ) ''ask provider validate "${name}"''
+            ) (builtins.attrNames packages.extras.providers)}
             touch "$out"
           '';
         }
