@@ -19,6 +19,10 @@ func TestFMProcess(t *testing.T) {
 		return
 	}
 	args := os.Args
+	if slices.Contains(args, "--list-models") {
+		_, _ = os.Stdout.WriteString("system\n")
+		os.Exit(0)
+	}
 	for _, arg := range []string{"respond", "--no-stream", "--model", "system", "--text"} {
 		if !slices.Contains(args, arg) {
 			os.Exit(2)
@@ -114,7 +118,11 @@ func TestFMManifest(t *testing.T) {
 			t.Fatal(err)
 		}
 		var output bytes.Buffer
-		if err := textadapter.Run(manifest.Actions[action].Argv, bytes.NewReader(encoded), &output); err != nil {
+		args := manifest.Actions[action].Argv
+		if action == core.ActionModels {
+			args = []string{"--models", "--", os.Args[0], "-test.run=TestFMProcess", "--", "--list-models"}
+		}
+		if err := textadapter.Run(args, bytes.NewReader(encoded), &output); err != nil {
 			t.Fatal(err)
 		}
 		if !json.Valid(output.Bytes()) {
