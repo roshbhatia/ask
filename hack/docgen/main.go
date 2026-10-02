@@ -12,6 +12,8 @@ import (
 )
 
 type Package struct {
+	Goos         []string  `json:"goos,omitempty"`
+	Goarch       []string  `json:"goarch,omitempty"`
 	Name         string    `json:"name"`
 	Core         string    `json:"core"`
 	Nix          string    `json:"nix"`

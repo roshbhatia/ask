@@ -551,6 +551,7 @@ Print a schema template
 | `crush` | Crush CLI | `inference.generate`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-crush'` |
 | `cursor` | Cursor Agent CLI | `inference.generate`, `inference.models`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-cursor'` |
 | `devin` | Devin CLI | `inference.generate`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-devin'` |
+| `fm` | Apple Foundation Models CLI | `inference.generate`, `inference.models`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-fm'` |
 | `fx` | fx coding agent CLI | `inference.generate`, `inference.models`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-fx'` |
 | `goose` | Goose CLI | `inference.generate`, `provider.validate` | `nix profile install 'github:roshbhatia/ask#provider-goose'` |
 | `hermes` | Hermes Agent CLI | `inference.generate`, `provider.validate` | `nix profile install 'github:roshbhatia/ask?dir=extras#provider-hermes'` |

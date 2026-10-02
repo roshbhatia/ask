@@ -127,9 +127,12 @@
           providerScope = pkgs // {
             inherit mkProvider;
           };
-          providers = lib.genAttrs providerNames (
+          allProviders = lib.genAttrs providerNames (
             name: lib.callPackageWith providerScope (./extras + "/${name}/default.nix") { }
           );
+          providers = lib.filterAttrs (
+            _: package: lib.meta.availableOn pkgs.stdenv.hostPlatform package
+          ) allProviders;
           extras = pkgs.symlinkJoin {
             name = "ask-extras-${version}";
             paths = lib.attrValues providers;
@@ -166,29 +169,48 @@
           lib = nixpkgs.lib;
           pkgs = nixpkgs.legacyPackages.${system};
           packages = self.packages.${system};
-          names = providerNames;
+          names = builtins.attrNames packages.extras.providers;
           providerCheck =
             name:
             let
               package = packages."provider-${name}";
             in
-            pkgs.runCommand "ask-provider-${name}-validation" { nativeBuildInputs = [ pkgs.jq ]; } ''
-              export HOME="$TMPDIR/home"
-              export XDG_CONFIG_HOME="$TMPDIR/config"
-              export XDG_DATA_HOME="$TMPDIR/data"
-              export XDG_DATA_DIRS="${package}/share"
-              unset ASK_CONFIG ASK_PROVIDER ASK_PROVIDER_DEFAULT ASK_PROVIDERS_DIRECTORY
-              export ASK_PROVIDER_PATH=""
-              export PATH="${package}/bin:${packages.ask}/bin:${pkgs.jq}/bin:${pkgs.gnugrep}/bin:${pkgs.coreutils}/bin"
-              mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME"
+            pkgs.runCommand "ask-provider-${name}-validation"
+              {
+                nativeBuildInputs = [
+                  pkgs.jq
+                  pkgs.yq-go
+                ];
+              }
+              ''
+                export HOME="$TMPDIR/home"
+                export XDG_CONFIG_HOME="$TMPDIR/config"
+                export XDG_DATA_HOME="$TMPDIR/data"
+                export XDG_DATA_DIRS="${package}/share"
+                unset ASK_CONFIG ASK_PROVIDER ASK_PROVIDER_DEFAULT ASK_PROVIDERS_DIRECTORY
+                export ASK_PROVIDER_PATH=""
+                export PATH="${package}/bin:${packages.ask}/bin:${pkgs.jq}/bin:${pkgs.gnugrep}/bin:${pkgs.coreutils}/bin"
+                mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME"
 
-              test -x "${package}/bin/ask-provider-${name}"
-              test -f "${package}/share/ask/providers/${name}/provider.yaml"
-              ask provider validate "${name}"
-              test "$(ask provider list --json | jq 'length')" -eq 1
-              ask provider list | grep -F "command: ask-provider-${name}"
-              touch "$out"
-            '';
+                test -x "${package}/bin/ask-provider-${name}"
+                test -f "${package}/share/ask/providers/${name}/provider.yaml"
+                ${
+                  if package.providerRuntime == null then
+                    ''
+                      mapfile -t probeArgs < <(${lib.getExe pkgs.yq-go} -r '.actions["provider.validate"].argv[]' "${package}/share/ask/providers/${name}/provider.yaml")
+                      printf '%s\n' '{"version":"provider/v1","action":"provider.validate","request":{}}' |
+                        "${package}/bin/ask-provider-${name}" "''${probeArgs[@]}" |
+                        jq -e '.version == "provider/v1" and .status == "ok"'
+                    ''
+                  else
+                    ''
+                      ask provider validate "${name}"
+                    ''
+                }
+                test "$(ask provider list --json | jq 'length')" -eq 1
+                ask provider list | grep -F "command: ask-provider-${name}"
+                touch "$out"
+              '';
           isolatedChecks = map providerCheck names;
         in
         {

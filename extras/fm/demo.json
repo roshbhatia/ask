@@ -1,0 +1,5 @@
+{
+  "name": "fm",
+  "summary": "Ask the on-device Apple model to summarize a Git change",
+  "status": "pending"
+}
