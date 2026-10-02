@@ -35,6 +35,7 @@ adapter and its CLI dependency.
 | [crush](crush/README.md) | Crush CLI | Pending |
 | [cursor](cursor/README.md) | Cursor Agent CLI | Pending |
 | [devin](devin/README.md) | Devin CLI | Pending |
+| [fm](fm/README.md) | Apple Foundation Models CLI | Pending |
 | [fx](fx/README.md) | fx coding agent CLI | Pending |
 | [goose](goose/README.md) | Goose CLI | Pending |
 | [hermes](hermes/README.md) | Hermes Agent CLI | Pending |

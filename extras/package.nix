@@ -6,7 +6,7 @@
 }:
 {
   name,
-  runtime,
+  runtime ? null,
   manifest,
   adapterSubpackage ? "./extras/${name}",
 }:
@@ -19,10 +19,7 @@ let
   executable = "ask-provider-${name}";
   entry = pkgs.writeShellApplication {
     name = executable;
-    runtimeInputs = [
-      runtime
-      adapter
-    ];
+    runtimeInputs = [ adapter ] ++ lib.optional (runtime != null) runtime;
     text = ''
       exec ask-provider-${name}-raw "$@"
     '';
@@ -35,10 +32,7 @@ let
 in
 pkgs.symlinkJoin {
   name = "ask-provider-${name}-${version}";
-  paths = [
-    adapterPackage
-    runtime
-  ];
+  paths = [ adapterPackage ] ++ lib.optional (runtime != null) runtime;
   passthru = {
     adapter = adapterPackage;
     providerRuntime = runtime;

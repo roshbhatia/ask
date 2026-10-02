@@ -127,9 +127,12 @@
           providerScope = pkgs // {
             inherit mkProvider;
           };
-          providers = lib.genAttrs providerNames (
+          allProviders = lib.genAttrs providerNames (
             name: lib.callPackageWith providerScope (./extras + "/${name}/default.nix") { }
           );
+          providers = lib.filterAttrs (
+            _: package: lib.meta.availableOn pkgs.stdenv.hostPlatform package
+          ) allProviders;
           extras = pkgs.symlinkJoin {
             name = "ask-extras-${version}";
             paths = lib.attrValues providers;
@@ -166,7 +169,7 @@
           lib = nixpkgs.lib;
           pkgs = nixpkgs.legacyPackages.${system};
           packages = self.packages.${system};
-          names = providerNames;
+          names = builtins.attrNames packages.extras.providers;
           providerCheck =
             name:
             let

@@ -1,0 +1,27 @@
+version: provider/v1
+name: fm
+description: Apple Foundation Models CLI
+command: [ask-provider-fm]
+actions:
+  inference.generate:
+    description: Generate an answer with the on-device Apple model
+    argv:
+      - --input-mode=prompt
+      - --model-flag=--model
+      - --prompt-flag=--text
+      - --
+      - /usr/bin/fm
+      - respond
+      - --no-stream
+  inference.models:
+    description: List the built-in Apple model
+    argv: [--models, --, /usr/bin/printf, 'system\n']
+  provider.validate:
+    description: Validate the adapter without model work
+    argv: [--validate, --input-mode=prompt, --model-flag=--model, --prompt-flag=--text, --, /usr/bin/fm]
+requires:
+  commands: [/usr/bin/fm]
+defaults:
+  model: system
+  light: system
+  timeout: 10m

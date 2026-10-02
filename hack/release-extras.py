@@ -31,7 +31,8 @@ for entry, metadata in zip(index['packages'], index['providers'], strict=True):
         build = {
             'id': identifier, 'main': './' + package_path, 'binary': entry['binary'],
             'env': ['CGO_ENABLED=0'], 'flags': ['-trimpath'],
-            'goos': ['darwin', 'linux'], 'goarch': ['amd64', 'arm64'],
+            'goos': metadata.get('goos', ['darwin', 'linux']),
+            'goarch': metadata.get('goarch', ['amd64', 'arm64']),
             'ignore': [{'goos': 'darwin', 'goarch': 'amd64'}],
         }
         if (directory / 'go.mod').is_file():

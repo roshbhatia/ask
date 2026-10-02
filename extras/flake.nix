@@ -22,15 +22,7 @@
         "x86_64-linux"
       ];
       eachSystem = nixpkgs.lib.genAttrs supportedSystems;
-      rootProviderDirectories = nixpkgs.lib.filterAttrs (
-        name: type:
-        type == "directory"
-        && builtins.pathExists (./. + "/${name}/default.nix")
-        && builtins.pathExists (./. + "/${name}/provider.yaml")
-      ) (builtins.readDir ./.);
-      rootProviderNames = builtins.attrNames rootProviderDirectories;
       standaloneName = builtins.baseNameOf ./hermes;
-      providerNames = rootProviderNames ++ [ standaloneName ];
     in
     {
       formatter = eachSystem (system: nixpkgs.legacyPackages.${system}.nixfmt);
@@ -40,7 +32,7 @@
         let
           lib = nixpkgs.lib;
           pkgs = nixpkgs.legacyPackages.${system};
-          rootProviders = lib.genAttrs rootProviderNames (name: ask.packages.${system}."provider-${name}");
+          rootProviders = ask.packages.${system}.extras.providers;
           providers = rootProviders // {
             "${standaloneName}" = import ./hermes/package.nix {
               inherit pkgs;
@@ -85,7 +77,7 @@
             export ASK_PROVIDER_PATH=""
             export PATH="${packages.full}/bin:${pkgs.jq}/bin:${pkgs.coreutils}/bin"
             mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME"
-            test "$(ask provider list --json | jq 'length')" -eq ${toString (builtins.length providerNames)}
+            test "$(ask provider list --json | jq 'length')" -eq ${toString (builtins.length (builtins.attrNames packages.extras.providers))}
             ask provider validate
             touch "$out"
           '';
